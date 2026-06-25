@@ -27,6 +27,12 @@
   // Keeping everything on one canvas is what makes every dot clickable — a second
   // stacked canvas would intercept clicks meant for the layer beneath it.
   const canvas = L.canvas({ padding: 0.5 });
+  // Forecast heatmap below the quakes; hit/miss markers above. Both panes are
+  // pointer-events:none so they never intercept the map's click handler.
+  map.createPane("fcPane"); map.getPane("fcPane").style.zIndex = 350; map.getPane("fcPane").style.pointerEvents = "none";
+  map.createPane("exPane"); map.getPane("exPane").style.zIndex = 460; map.getPane("exPane").style.pointerEvents = "none";
+  const fcRenderer = L.canvas({ pane: "fcPane", padding: 0.5 });
+  const exRenderer = L.canvas({ pane: "exPane", padding: 0.5 });
 
   // ---- Depth color / magnitude size ---------------------------------------
   function depthColor(d) {
@@ -214,6 +220,7 @@
       const note = document.getElementById("live-note");
       if (note) note.textContent = `${feats.length} quakes in the last 30 days — hover or click any blue dot.`;
       buildRecent();
+      if (typeof FC !== "undefined" && FC && fcExercise === "live") applyExercise();
     }).catch(() => {
       liveLoaded = false;
       const note = document.getElementById("live-note");
@@ -278,6 +285,100 @@
     });
   }
 
+  // ---- Forecast model: heatmap layer + hit/miss back-test exercise ---------
+  const FC = S.forecast || null;
+  const fcLayer = L.layerGroup();   // likelihood heatmap (below quakes)
+  const exLayer = L.layerGroup();   // alarm-zone outline + hit/miss dots (above)
+  let fcExercise = "live";          // 'live' | 'retro'
+  let fcPct = (FC && FC.meta && FC.meta.recommended_top_pct) || 20;
+
+  function fcCellIndex(lat, lon) {
+    const m = FC.meta;
+    const r = Math.floor((lat - m.minlat) / m.cellDeg);
+    const c = Math.floor((lon - m.minlon) / m.cellDeg);
+    if (r < 0 || r >= m.nrows || c < 0 || c >= m.ncols) return -1;
+    return r * m.ncols + c;
+  }
+  function fcHeatColor(t) { // 0..1 → purple→magenta→orange→yellow
+    const s = [[0, [59, 28, 106]], [0.4, [142, 43, 226]], [0.7, [255, 110, 199]], [1, [255, 209, 102]]];
+    let a = s[0], b = s[s.length - 1];
+    for (let i = 0; i < s.length - 1; i++) if (t >= s[i][0] && t <= s[i + 1][0]) { a = s[i]; b = s[i + 1]; break; }
+    const f = (t - a[0]) / ((b[0] - a[0]) || 1);
+    const ch = k => Math.round(a[1][k] + (b[1][k] - a[1][k]) * f);
+    return `rgb(${ch(0)},${ch(1)},${ch(2)})`;
+  }
+  function fcCellBounds(i) {
+    const m = FC.meta, r = Math.floor(i / m.ncols), c = i % m.ncols;
+    const lat0 = m.minlat + r * m.cellDeg, lon0 = m.minlon + c * m.cellDeg;
+    return [[lat0, lon0], [lat0 + m.cellDeg, lon0 + m.cellDeg]];
+  }
+  function renderForecastHeat() {
+    fcLayer.clearLayers();
+    if (!FC) return;
+    const grid = FC[fcExercise].grid, max = Math.max.apply(null, grid);
+    for (let i = 0; i < grid.length; i++) {
+      const t = grid[i] / max;
+      if (t < 0.04) continue;
+      L.rectangle(fcCellBounds(i), { renderer: fcRenderer, interactive: false, stroke: false,
+        fillColor: fcHeatColor(t), fillOpacity: 0.12 + 0.55 * Math.sqrt(t) }).addTo(fcLayer);
+    }
+  }
+  function fcAlarmSet(grid, pct) {
+    const order = grid.map((p, i) => [p, i]).sort((a, b) => b[0] - a[0]);
+    const n = Math.max(1, Math.round(grid.length * pct / 100));
+    const set = new Set();
+    for (let i = 0; i < n; i++) set.add(order[i][1]);
+    return set;
+  }
+  function fcTestEvents() {
+    if (fcExercise === "live") return liveData.map(q => ({ lat: q.lat, lon: q.lon, mag: q.mag }));
+    const t0 = Date.UTC(2019, 0, 1), t1 = Date.UTC(2021, 0, 1), out = [];
+    for (const f of QUAKES) {
+      const p = f.properties;
+      if (p.mag == null || p.mag < 3.5 || !p.time || p.time < t0 || p.time >= t1) continue;
+      const c = f.geometry.coordinates; out.push({ lat: c[1], lon: c[0], mag: p.mag });
+    }
+    return out;
+  }
+  function scoreForecast() {
+    if (!FC) return;
+    const grid = FC[fcExercise].grid, alarm = fcAlarmSet(grid, fcPct), events = fcTestEvents();
+    exLayer.clearLayers();
+    alarm.forEach(i => L.rectangle(fcCellBounds(i),
+      { renderer: exRenderer, interactive: false, fill: false, color: "#4dd2ff", weight: 0.6, opacity: 0.45 }).addTo(exLayer));
+    let hits = 0, scored = 0;
+    events.forEach(e => {
+      const idx = fcCellIndex(e.lat, e.lon);
+      if (idx < 0) return;
+      scored++;
+      const hit = alarm.has(idx);
+      if (hit) hits++;
+      L.circleMarker([e.lat, e.lon], { renderer: exRenderer, interactive: false, radius: 4,
+        color: hit ? "#7ee787" : "#ff5d5d", weight: 1.5, fillColor: hit ? "#7ee787" : "#ff5d5d", fillOpacity: 0.55 }).addTo(exLayer);
+    });
+    const misses = scored - hits, hitRate = scored ? hits / scored : 0, lift = fcPct ? hitRate / (fcPct / 100) : 0;
+    const sg = document.getElementById("fc-stats");
+    if (sg) sg.innerHTML = [
+      [scored, "events tested"], [hits, "✓ hits (in zone)"],
+      [misses, "✗ misses (surprises)"], [scored ? lift.toFixed(2) + "×" : "—", "vs random chance"],
+    ].map(c => `<div class="stat"><div class="v">${c[0]}</div><div class="k">${c[1]}</div></div>`).join("");
+    const note = document.getElementById("fc-note");
+    if (note) note.innerHTML = fcExercise === "retro"
+      ? `Trained <b>only on pre-2019 data</b>, so it can't know the Guánica fault would rupture — its hot zone honestly sits in the NE (Virgin Islands). It still lands ${(hitRate * 100).toFixed(0)}% of the ${scored} sequence events in the top ${fcPct}% area (<b>${lift.toFixed(1)}× chance</b>). The red misses are the real surprises.`
+      : (scored ? `Trained on data up to ~35 days ago, scored against the live last-30-day feed: <b>${hits}/${scored}</b> recent events fell in the top ${fcPct}% likelihood area (<b>${lift.toFixed(1)}× chance</b>).`
+                : `Waiting for the live feed… (or no recent events in range).`);
+  }
+  function applyExercise() { if (map.hasLayer(fcLayer)) renderForecastHeat(); scoreForecast(); }
+  function buildForecast() {
+    if (!FC) {
+      ["forecast", "lyr-forecast-row"].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = "none"; });
+      return;
+    }
+    document.getElementById("fc-pct").textContent = fcPct + "%";
+    document.getElementById("fc-slider").value = fcPct;
+    scoreForecast();
+  }
+
   // ---- Stats panel + Gutenberg-Richter chart -------------------------------
   function buildStats() {
     const st = S.stats || {};
@@ -319,7 +420,7 @@
     el.addEventListener("change", () => el.checked ? layer.addTo(map) : map.removeLayer(layer));
   }
 
-  buildTectonics(); buildGPS(); buildLandmarks(); buildStats(); buildCrossSection(); renderQuakes();
+  buildTectonics(); buildGPS(); buildLandmarks(); buildStats(); buildCrossSection(); buildForecast(); renderQuakes();
   quakeLayer.addTo(map); tectLayer.addTo(map); gpsLayer.addTo(map); landmarkLayer.addTo(map);
 
   toggle("lyr-quakes", quakeLayer);
@@ -332,6 +433,29 @@
     if (e.target.checked) { loadLive(); liveLayer.addTo(map); } else map.removeLayer(liveLayer);
   });
   if (liveCb.checked) { loadLive(); liveLayer.addTo(map); } // on by default
+
+  // Forecast model wiring (heatmap layer + back-test exercise controls).
+  if (FC) {
+    document.getElementById("lyr-forecast").addEventListener("change", e => {
+      if (e.target.checked) { renderForecastHeat(); fcLayer.addTo(map); } else map.removeLayer(fcLayer);
+    });
+    document.querySelectorAll(".fc-tab").forEach(btn => btn.addEventListener("click", () => {
+      document.querySelectorAll(".fc-tab").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      fcExercise = btn.dataset.ex;
+      applyExercise();
+    }));
+    const slider = document.getElementById("fc-slider");
+    slider.addEventListener("input", () => {
+      fcPct = parseInt(slider.value, 10);
+      document.getElementById("fc-pct").textContent = fcPct + "%";
+      scoreForecast();
+    });
+    document.getElementById("fc-showmap").addEventListener("change", e => {
+      if (e.target.checked) { scoreForecast(); exLayer.addTo(map); renderForecastHeat(); fcLayer.addTo(map); document.getElementById("lyr-forecast").checked = true; }
+      else { map.removeLayer(exLayer); }
+    });
+  }
 
   // ---- Click anywhere to identify the nearest earthquake -------------------
   // Robust + forgiving: searches the visible historical catalog and the live

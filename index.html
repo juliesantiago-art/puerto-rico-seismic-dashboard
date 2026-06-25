@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Puerto Rico Seismic Dashboard</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="styles.css?v=6" />
+  <link rel="stylesheet" href="styles.css?v=7" />
 </head>
 <body>
 <div id="app">
@@ -32,6 +32,7 @@
       <label class="chk"><input type="checkbox" id="lyr-faults"> Active faults</label>
       <label class="chk"><input type="checkbox" id="lyr-gps" checked> Land motion (GPS)</label>
       <label class="chk"><input type="checkbox" id="lyr-landmark" checked> Landmark events</label>
+      <label class="chk" id="lyr-forecast-row"><input type="checkbox" id="lyr-forecast"> 🔮 Forecast model (likely zones)</label>
       <p id="live-note" class="count">Loading live quakes…</p>
     </section>
 
@@ -83,6 +84,22 @@
       <div id="stat-grid" class="stat-grid"></div>
       <canvas id="gr-chart" height="150"></canvas>
       <p class="fine" id="gr-note"></p>
+    </section>
+
+    <section class="panel" id="forecast">
+      <h2>🔮 Forecast vs. reality <span class="tag">experiment</span></h2>
+      <p class="fine">A smoothed-seismicity model forecasts <em>where</em> earthquakes are likely;
+        we then score real events as hits/misses. It forecasts probability by location —
+        <strong>not specific quakes, times, or magnitudes.</strong></p>
+      <div class="fc-tabs">
+        <button class="fc-tab active" data-ex="live">Live · 30 days</button>
+        <button class="fc-tab" data-ex="retro">2019–20 Guánica</button>
+      </div>
+      <div class="row"><span>Alarm zone = top</span><span id="fc-pct" class="mono">20%</span></div>
+      <input type="range" id="fc-slider" min="5" max="60" step="1" value="20">
+      <div id="fc-stats" class="stat-grid"></div>
+      <label class="chk"><input type="checkbox" id="fc-showmap"> Show forecast &amp; hits/misses on map</label>
+      <p class="fine" id="fc-note"></p>
     </section>
 
     <section class="panel" id="magscale">
@@ -198,7 +215,7 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="data/data.js?v=5"></script>
-<script src="app.js?v=6"></script>
+<script src="data/data.js?v=7"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>

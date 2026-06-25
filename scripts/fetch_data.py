@@ -385,7 +385,8 @@ def write_bundle():
     print("[bundle] data/data.js ...")
     files = {"quakes": "pr_quakes.geojson", "plates": "plate_boundary.geojson",
              "faults": "faults.geojson", "gps": "gps_velocities.geojson",
-             "landmarks": "landmark_events.json", "stats": "stats.json"}
+             "landmarks": "landmark_events.json", "stats": "stats.json",
+             "forecast": "forecast.json"}
     bundle = {}
     for key, fn in files.items():
         with open(os.path.join(DATA, fn)) as fh:

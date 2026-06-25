@@ -83,6 +83,16 @@ footer p{font-size:10.5px;color:var(--muted);line-height:1.5;margin:0}
 .tag.live{background:#4aa8ff;color:#04121f}
 .tag.warn{background:#ff6b6b;color:#2a0000}
 
+/* forecast experiment */
+#forecast .fc-tabs{display:flex;gap:6px;margin:10px 0}
+.fc-tab{flex:1;background:var(--panel2);color:var(--muted);border:1px solid var(--line);
+  border-radius:6px;padding:7px 4px;font-size:12px;cursor:pointer}
+.fc-tab:hover{color:var(--text)}
+.fc-tab.active{background:#3a1c6a;border-color:#9b4dca;color:#fff}
+#forecast .stat-grid{margin:10px 0}
+#forecast .stat .v{font-size:18px}
+#fc-note{min-height:1em}
+
 /* popup intensity line */
 .pp-int{color:#ffd166;font-weight:600}
 .leaflet-popup-content a{color:#4aa8ff}
