@@ -85,6 +85,50 @@
   <!-- ===================== MAP ===================== -->
   <main id="map"></main>
   <div id="loading">Loading Puerto Rico seismic data…</div>
+  <button id="help-btn" title="How to read this map">?</button>
+</div>
+
+<!-- ===================== ABOUT / INTRO OVERLAY ===================== -->
+<div id="about" class="about-hidden">
+  <div class="about-card">
+    <button id="about-close" aria-label="Close">×</button>
+    <h2>How to read this map</h2>
+    <p class="lead">A live look at where earthquakes happen around <strong>Puerto Rico</strong>,
+      how the land is slowly moving, and what the long-term hazard looks like — built from
+      authoritative open data (USGS, GEM, NGL).</p>
+
+    <div class="about-grid">
+      <div class="ab">
+        <div class="ab-ic"><span class="dot d1"></span><span class="dot d3"></span><span class="dot d4"></span></div>
+        <div><b>The dots are earthquakes.</b> Color = how deep (red = shallow → teal = deep).
+          Bigger dot = stronger quake. The dense red cluster in the southwest is the
+          <b>2020 Guánica sequence</b>.</div>
+      </div>
+      <div class="ab">
+        <div class="ab-ic"><span class="arrow">➜</span></div>
+        <div><b>Green arrows = the land moving.</b> GPS stations show the crust creeping
+          ~2&nbsp;cm/year as the plates grind — this is the strain that eventually releases as quakes.</div>
+      </div>
+      <div class="ab">
+        <div class="ab-ic">★</div>
+        <div><b>Stars are landmark events</b> — click them for the story (e.g. the deadly
+          <b>1918 Mona Passage</b> earthquake &amp; tsunami).</div>
+      </div>
+      <div class="ab">
+        <div class="ab-ic">▶</div>
+        <div><b>Press “Play 2018–2021”</b> to watch the Guánica sequence build up year by year.
+          Use the sliders to filter by size and time, and the checkboxes to toggle layers.</div>
+      </div>
+    </div>
+
+    <p class="about-honest"><b>Forecasting, not prediction.</b> This tool helps you understand
+      hazard — it does <b>not</b> predict when the next earthquake will strike, and earthquakes
+      can’t be prevented or delayed. What protects people: early warning, tsunami-evacuation
+      readiness, and building codes. For official alerts, rely on
+      <b>Red Sísmica de Puerto Rico</b> and <b>NOAA</b>.</p>
+
+    <button id="about-start">Explore the map →</button>
+  </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

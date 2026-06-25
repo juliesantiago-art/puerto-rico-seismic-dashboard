@@ -248,6 +248,22 @@
   const ld = document.getElementById("loading");
   if (ld) ld.remove();
 
+  // About / intro overlay — shows on first visit, reopenable via the "?" button.
+  const about = document.getElementById("about");
+  function showAbout() { about.classList.remove("about-hidden"); }
+  function hideAbout() {
+    about.classList.add("about-hidden");
+    try { localStorage.setItem("pr_seen_intro", "1"); } catch (e) {}
+  }
+  let seen = false;
+  try { seen = localStorage.getItem("pr_seen_intro") === "1"; } catch (e) {}
+  if (!seen) showAbout();
+  document.getElementById("help-btn").addEventListener("click", showAbout);
+  document.getElementById("about-close").addEventListener("click", hideAbout);
+  document.getElementById("about-start").addEventListener("click", hideAbout);
+  about.addEventListener("click", e => { if (e.target === about) hideAbout(); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") hideAbout(); });
+
   // Ensure canvas renderers pick up the final flex layout size (otherwise the
   // earthquake canvas can initialise at 0 width and draw nothing).
   window.MAP = map;
