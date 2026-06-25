@@ -183,51 +183,54 @@ def fetch_faults():
 
 
 # ===========================================================================
-# 4. GPS velocities (Nevada Geodetic Lab MIDAS, IGS14) -> land-motion vectors
+# 4. GPS velocities (JPL GNSS velocity table, IGS14) -> land-motion vectors
+#    Real measured per-station velocities. JPL's table is small and reachable;
+#    NGL's MIDAS file is large and was unreachable from some networks.
 # ===========================================================================
 def fetch_gps():
-    print("[4/6] GPS velocities (NGL MIDAS) ...")
-    url = "http://geodesy.unr.edu/velocities/midas.IGS14.txt"
-    feats = []
+    print("[4/6] GPS velocities (JPL GNSS, IGS14) ...")
+    url = "https://sideshow.jpl.nasa.gov/post/tables/table2.html"
+    feats, source = [], "JPL GNSS (IGS14)"
     try:
-        text = http_get(url, timeout=180).decode("utf-8", "replace")
+        text = http_get(url, timeout=60).decode("utf-8", "replace")
+        pos, vel = {}, {}
         for line in text.splitlines():
-            if not line or line.startswith("#"):
+            p = line.split()
+            if len(p) >= 6 and p[1] == "POS":
+                try: pos[p[0]] = (float(p[2]), float(p[3]))   # lat, lon
+                except ValueError: pass
+            elif len(p) >= 5 and p[1] == "VEL":
+                try: vel[p[0]] = (float(p[2]), float(p[3]))   # Vn, Ve (mm/yr)
+                except ValueError: pass
+        seen = set()
+        items = sorted((s for s in pos if s in vel), key=lambda s: -vel[s][0])
+        for s in items:
+            lat, lon = pos[s]
+            if lon > 180: lon -= 360.0
+            if not (MINLAT <= lat <= MAXLAT and MINLON <= lon <= MAXLON):
                 continue
-            c = line.split()
-            if len(c) < 12:
+            key = (round(lat, 3), round(lon, 3))
+            if key in seen:            # dedupe co-located instruments (e.g. PUR2/PUR3)
                 continue
-            try:
-                # NGL MIDAS columns: sta label .. then geodetic lon/lat appear late;
-                # east/north velocities are in m/yr. We locate lon/lat by range.
-                ve = float(c[8]); vn = float(c[9])      # m/yr east, north
-                lat = float(c[-3]); lon = float(c[-2])
-            except (ValueError, IndexError):
-                continue
-            if lon > 180:
-                lon -= 360.0
-            if not in_box(lat, lon, CLIP):
-                continue
+            seen.add(key)
+            vn, ve = vel[s]
             feats.append({
                 "type": "Feature",
-                "geometry": {"type": "Point", "coordinates": [lon, lat]},
-                "properties": {
-                    "station": c[0],
-                    "ve_mm": round(ve * 1000.0, 2),   # mm/yr east
-                    "vn_mm": round(vn * 1000.0, 2),   # mm/yr north
-                    "speed_mm": round(math.hypot(ve, vn) * 1000.0, 2),
-                },
+                "geometry": {"type": "Point", "coordinates": [round(lon, 4), round(lat, 4)]},
+                "properties": {"station": s, "ve_mm": round(ve, 2), "vn_mm": round(vn, 2),
+                               "speed_mm": round(math.hypot(ve, vn), 1)},
             })
     except Exception as e:
-        print(f"    live parse failed ({e}); using curated fallback")
+        print(f"    JPL fetch failed ({e}); using representative fallback")
 
     if not feats:
         feats = curated_gps()
+        source = "representative (published Caribbean plate motion)"
     save("gps_velocities.geojson", {"type": "FeatureCollection",
-                                    "metadata": {"frame": "IGS14 (~ North America-relative motion visible)",
-                                                 "units": "mm/yr"},
+                                    "metadata": {"source": source, "units": "mm/yr",
+                                                 "count": len(feats)},
                                     "features": feats})
-    print(f"    -> {len(feats)} GPS stations near PR")
+    print(f"    -> {len(feats)} GPS stations near PR ({source})")
 
 
 def curated_gps():

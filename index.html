@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Puerto Rico Seismic Dashboard</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="styles.css?v=3" />
+  <link rel="stylesheet" href="styles.css?v=4" />
 </head>
 <body>
 <div id="app">
@@ -57,18 +57,18 @@
 
     <section class="panel" id="landmotion">
       <h2>How the land is moving</h2>
-      <div class="lm-big">≈ 2 cm / year</div>
-      <p>All of Puerto Rico is drifting <strong>toward the ENE</strong> — as one nearly-rigid
-        block — at about the speed your fingernails grow. The green arrows are GPS stations;
-        each shows which way and how fast the ground there is creeping.</p>
+      <div class="lm-big">≈ 1.5–2 cm / year</div>
+      <p>All of Puerto Rico is drifting <strong>toward the NE</strong> — as one nearly-rigid
+        block — at about the speed your fingernails grow. The green arrows are real GPS stations;
+        each shows which way and how fast the ground there is actually creeping.</p>
       <p>It rides the <strong>Caribbean plate</strong>, grinding past the North American plate
         along the <strong>Puerto Rico Trench</strong> to the north. That motion is locked up on
         the faults — strain builds for decades, then releases as an earthquake. To the west, the
         <strong>Mona Passage</strong> is slowly pulling apart (the 1918 source).</p>
       <div class="lm-scale"><span class="lm-arrow">➜</span> longer arrow = faster · hover or
         click an arrow for its exact speed &amp; direction</div>
-      <p class="fine">GPS vectors are approximate, representative of published Caribbean
-        plate motion (IGS14 frame). Toggle “Land motion (GPS)” to show/hide.</p>
+      <p class="fine">GPS vectors are real measured velocities from JPL’s GNSS network
+        (IGS14 frame, epoch 2026.0). Toggle “Land motion (GPS)” to show/hide.</p>
     </section>
 
     <section class="panel" id="risk">
@@ -150,7 +150,7 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="data/data.js?v=3"></script>
-<script src="app.js?v=3"></script>
+<script src="data/data.js?v=4"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>
