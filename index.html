@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Puerto Rico Seismic Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div id="app">
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside id="sidebar">
+    <header>
+      <h1>Puerto Rico Seismic Dashboard</h1>
+      <p class="sub">How the land is moving &amp; where earthquakes happen — built from
+        authoritative open data. <strong>Forecasting, not prediction.</strong></p>
+    </header>
+
+    <section class="panel">
+      <h2>Map layers</h2>
+      <label class="chk"><input type="checkbox" id="lyr-quakes" checked> Earthquakes (history)</label>
+      <label class="chk"><input type="checkbox" id="lyr-live"> Live recent quakes (USGS)</label>
+      <label class="chk"><input type="checkbox" id="lyr-tect" checked> Plate boundary &amp; trenches</label>
+      <label class="chk"><input type="checkbox" id="lyr-faults"> Active faults</label>
+      <label class="chk"><input type="checkbox" id="lyr-gps" checked> Land motion (GPS)</label>
+      <label class="chk"><input type="checkbox" id="lyr-landmark" checked> Landmark events</label>
+    </section>
+
+    <section class="panel">
+      <h2>Filter &amp; time</h2>
+      <div class="row">
+        <span>Min magnitude</span><span id="mag-val" class="mono">3.5</span>
+      </div>
+      <input type="range" id="mag-min" min="2.5" max="6" step="0.1" value="3.5">
+      <div class="row">
+        <span>Up to year</span><span id="year-val" class="mono">—</span>
+      </div>
+      <input type="range" id="year" min="1900" max="2026" step="1" value="2026">
+      <div class="btns">
+        <button id="play">▶ Play 2018–2021</button>
+        <button id="reset">Reset</button>
+      </div>
+      <p id="count" class="count">—</p>
+    </section>
+
+    <section class="panel legend">
+      <h2>Legend</h2>
+      <div class="leg-row"><span class="dot d1"></span> 0–30 km (shallow)</div>
+      <div class="leg-row"><span class="dot d2"></span> 30–70 km</div>
+      <div class="leg-row"><span class="dot d3"></span> 70–150 km</div>
+      <div class="leg-row"><span class="dot d4"></span> &gt;150 km (deep)</div>
+      <div class="leg-row"><span class="sz s1"></span><span class="sz s2"></span><span class="sz s3"></span> bigger = stronger</div>
+      <div class="leg-row"><span class="arrow">➜</span> GPS arrow = direction the land is creeping (~2 cm/yr)</div>
+    </section>
+
+    <section class="panel" id="risk">
+      <h2>Risk snapshot <span class="tag">forecast</span></h2>
+      <div id="stat-grid" class="stat-grid"></div>
+      <canvas id="gr-chart" height="150"></canvas>
+      <p class="fine" id="gr-note"></p>
+    </section>
+
+    <section class="panel" id="prepare">
+      <h2>What can actually be done?</h2>
+      <p><strong>Earthquakes can't be predicted, prevented, or delayed</strong> with today's
+        science — no method exists to stop or time a quake. What genuinely protects people:</p>
+      <ul>
+        <li><strong>Early warning</strong> — seconds of alert after a rupture starts.</li>
+        <li><strong>Tsunami readiness</strong> — PR's west coast can be hit in minutes (1918).
+          Know your evacuation route to high ground.</li>
+        <li><strong>Building codes &amp; retrofits</strong> — most quake deaths are from buildings, not shaking itself.</li>
+        <li><strong>Drills &amp; supplies</strong> — drop, cover, hold on; water, food, meds for days.</li>
+      </ul>
+      <p class="fine">This tool helps you <em>understand</em> hazard and watch the land move — it is
+        not an alarm system. For official alerts: Red Sísmica de PR &amp; NOAA Tsunami Warning.</p>
+    </section>
+
+    <footer>
+      <p>Sources: USGS ComCat · Red Sísmica de Puerto Rico (UPRM) · PB2002 plate model ·
+        GEM active faults · Nevada Geodetic Lab GPS · NOAA Caribbean Tsunami Warning Program.</p>
+    </footer>
+  </aside>
+
+  <!-- ===================== MAP ===================== -->
+  <main id="map"></main>
+  <div id="loading">Loading Puerto Rico seismic data…</div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="data/data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

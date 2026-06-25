@@ -1,0 +1,410 @@
+#!/usr/bin/env python3
+"""
+fetch_data.py — One-time data preparation for the Puerto Rico seismic dashboard.
+
+Pulls from authoritative, free sources and writes static files into ../data/:
+  - pr_quakes.geojson        Historical earthquake catalog (USGS ComCat)
+  - plate_boundary.geojson   North America / Caribbean plate boundary (PB2002)
+  - faults.geojson           Mapped active faults near PR (GEM Global Active Faults)
+  - gps_velocities.geojson   GPS station velocities = land-motion vectors (NGL MIDAS)
+  - landmark_events.json     Curated historic events (1918, 2020, ...)
+  - stats.json               Gutenberg-Richter b-value, rates, depth/magnitude summary
+
+Uses only the Python standard library — no pip installs needed.
+Run:  python3 scripts/fetch_data.py
+"""
+
+import json
+import math
+import os
+import ssl
+import sys
+import urllib.request
+import urllib.error
+from collections import Counter
+
+# ---------------------------------------------------------------------------
+# Region of interest: Puerto Rico + US Virgin Islands + Mona Passage
+# (north trench, Muertos Trough to south, Mona Passage to west)
+# ---------------------------------------------------------------------------
+MINLAT, MAXLAT = 17.0, 19.75
+MINLON, MAXLON = -68.5, -64.0
+# A slightly wider box used when clipping plate boundaries / faults / GPS
+PAD = 1.5
+CLIP = (MINLAT - PAD, MAXLAT + PAD, MINLON - PAD, MAXLON + PAD)
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+DATA = os.path.join(HERE, "..", "data")
+os.makedirs(DATA, exist_ok=True)
+
+# Some macOS Python builds need a relaxed SSL context for these hosts.
+_CTX = ssl.create_default_context()
+try:
+    import certifi  # noqa
+except Exception:
+    _CTX.check_hostname = False
+    _CTX.verify_mode = ssl.CERT_NONE
+
+
+def http_get(url, timeout=120):
+    req = urllib.request.Request(url, headers={"User-Agent": "pr-seismic-dashboard/1.0"})
+    with urllib.request.urlopen(req, timeout=timeout, context=_CTX) as r:
+        return r.read()
+
+
+def http_get_json(url, timeout=120):
+    return json.loads(http_get(url, timeout=timeout).decode("utf-8"))
+
+
+def in_box(lat, lon, box):
+    a, b, c, d = box
+    return (a <= lat <= b) and (c <= lon <= d)
+
+
+# ===========================================================================
+# 1. USGS earthquake catalog (chunked by year to stay under the 20k row cap)
+# ===========================================================================
+def fetch_quakes():
+    print("[1/6] USGS earthquake catalog ...")
+    base = "https://earthquake.usgs.gov/fdsnws/event/1/query"
+    features = {}
+    # Significant historical events back to 1900 (M3.5+), denser recent record (M2.5+).
+    plans = [
+        (1900, 1959, 3.5),
+        (1960, 2009, 3.0),
+        (2010, 2026, 2.5),  # captures the 2019-2020 Guanica sequence in detail
+    ]
+    for y0, y1, minmag in plans:
+        for year in range(y0, y1 + 1):
+            url = (
+                f"{base}?format=geojson"
+                f"&starttime={year}-01-01&endtime={year + 1}-01-01"
+                f"&minlatitude={MINLAT}&maxlatitude={MAXLAT}"
+                f"&minlongitude={MINLON}&maxlongitude={MAXLON}"
+                f"&minmagnitude={minmag}&orderby=time"
+            )
+            try:
+                fc = http_get_json(url, timeout=120)
+            except Exception as e:
+                print(f"    {year}: skipped ({e})")
+                continue
+            for f in fc.get("features", []):
+                features[f["id"]] = f
+            n = len(fc.get("features", []))
+            if n:
+                print(f"    {year}: +{n} (total {len(features)})")
+
+    feats = []
+    for f in features.values():
+        props = f.get("properties", {})
+        geom = f.get("geometry", {})
+        coords = geom.get("coordinates", [None, None, None])
+        if coords[0] is None or props.get("mag") is None:
+            continue
+        feats.append({
+            "type": "Feature",
+            "geometry": {"type": "Point", "coordinates": [coords[0], coords[1]]},
+            "properties": {
+                "id": f["id"],
+                "mag": round(float(props["mag"]), 1),
+                "depth": round(float(coords[2]), 1) if coords[2] is not None else None,
+                "time": props.get("time"),
+                "place": props.get("place"),
+                "type": props.get("type", "earthquake"),
+            },
+        })
+    feats.sort(key=lambda x: x["properties"]["time"] or 0)
+    out = {"type": "FeatureCollection",
+           "metadata": {"source": "USGS ComCat", "region": "Puerto Rico / USVI",
+                        "bbox": [MINLON, MINLAT, MAXLON, MAXLAT], "count": len(feats)},
+           "features": feats}
+    save("pr_quakes.geojson", out)
+    print(f"    -> {len(feats)} events")
+    return feats
+
+
+# ===========================================================================
+# 2. Plate boundaries (PB2002, Bird 2003) clipped to the region
+# ===========================================================================
+def fetch_plate_boundaries():
+    print("[2/6] Plate boundaries (PB2002) ...")
+    url = ("https://raw.githubusercontent.com/fraxen/tectonicplates/master/"
+           "GeoJSON/PB2002_boundaries.json")
+    try:
+        fc = http_get_json(url)
+    except Exception as e:
+        print(f"    failed ({e}); writing empty layer")
+        save("plate_boundary.geojson", empty_fc())
+        return
+    kept = []
+    for f in fc.get("features", []):
+        geom = f.get("geometry", {})
+        if geom.get("type") != "LineString":
+            continue
+        pts = geom.get("coordinates", [])
+        if any(in_box(p[1], p[0], CLIP) for p in pts):
+            f["properties"] = {"name": f.get("properties", {}).get("Name", "plate boundary")}
+            kept.append(f)
+    save("plate_boundary.geojson", {"type": "FeatureCollection", "features": kept})
+    print(f"    -> {len(kept)} boundary segments near PR")
+
+
+# ===========================================================================
+# 3. Active faults (GEM Global Active Faults) clipped to the region
+# ===========================================================================
+def fetch_faults():
+    print("[3/6] Active faults (GEM) ...")
+    url = ("https://raw.githubusercontent.com/GEMScienceTools/gem-global-active-faults/"
+           "master/geojson/gem_active_faults_harmonized.geojson")
+    try:
+        fc = http_get_json(url, timeout=180)
+    except Exception as e:
+        print(f"    failed ({e}); writing empty layer")
+        save("faults.geojson", empty_fc())
+        return
+    kept = []
+    for f in fc.get("features", []):
+        geom = f.get("geometry", {})
+        t = geom.get("type")
+        if t == "LineString":
+            lines = [geom.get("coordinates", [])]
+        elif t == "MultiLineString":
+            lines = geom.get("coordinates", [])
+        else:
+            continue
+        hit = any(in_box(p[1], p[0], CLIP) for ln in lines for p in ln)
+        if hit:
+            props = f.get("properties", {})
+            f["properties"] = {"name": props.get("name") or props.get("fault_name") or "fault",
+                               "slip_type": props.get("slip_type", "")}
+            kept.append(f)
+    save("faults.geojson", {"type": "FeatureCollection", "features": kept})
+    print(f"    -> {len(kept)} fault traces near PR")
+
+
+# ===========================================================================
+# 4. GPS velocities (Nevada Geodetic Lab MIDAS, IGS14) -> land-motion vectors
+# ===========================================================================
+def fetch_gps():
+    print("[4/6] GPS velocities (NGL MIDAS) ...")
+    url = "http://geodesy.unr.edu/velocities/midas.IGS14.txt"
+    feats = []
+    try:
+        text = http_get(url, timeout=180).decode("utf-8", "replace")
+        for line in text.splitlines():
+            if not line or line.startswith("#"):
+                continue
+            c = line.split()
+            if len(c) < 12:
+                continue
+            try:
+                # NGL MIDAS columns: sta label .. then geodetic lon/lat appear late;
+                # east/north velocities are in m/yr. We locate lon/lat by range.
+                ve = float(c[8]); vn = float(c[9])      # m/yr east, north
+                lat = float(c[-3]); lon = float(c[-2])
+            except (ValueError, IndexError):
+                continue
+            if lon > 180:
+                lon -= 360.0
+            if not in_box(lat, lon, CLIP):
+                continue
+            feats.append({
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [lon, lat]},
+                "properties": {
+                    "station": c[0],
+                    "ve_mm": round(ve * 1000.0, 2),   # mm/yr east
+                    "vn_mm": round(vn * 1000.0, 2),   # mm/yr north
+                    "speed_mm": round(math.hypot(ve, vn) * 1000.0, 2),
+                },
+            })
+    except Exception as e:
+        print(f"    live parse failed ({e}); using curated fallback")
+
+    if not feats:
+        feats = curated_gps()
+    save("gps_velocities.geojson", {"type": "FeatureCollection",
+                                    "metadata": {"frame": "IGS14 (~ North America-relative motion visible)",
+                                                 "units": "mm/yr"},
+                                    "features": feats})
+    print(f"    -> {len(feats)} GPS stations near PR")
+
+
+def curated_gps():
+    """Approximate published velocities for key PR/Caribbean stations (mm/yr, IGS14).
+    Used only if the live MIDAS file cannot be parsed so the layer still renders."""
+    raw = [
+        # station, lat, lon, ve, vn  (eastward, northward mm/yr)
+        ("PRN5", 18.20, -67.14, 11.5, 13.8),
+        ("MIPR", 18.46, -67.16, 11.2, 13.5),
+        ("CRO1", 17.76, -64.58, 10.9, 12.7),
+        ("VIEQ", 18.15, -65.44, 11.0, 13.6),
+        ("AOPR", 18.42, -66.76, 11.4, 13.9),
+        ("PUR3", 18.46, -66.12, 11.3, 13.7),
+    ]
+    feats = []
+    for sta, lat, lon, ve, vn in raw:
+        feats.append({
+            "type": "Feature",
+            "geometry": {"type": "Point", "coordinates": [lon, lat]},
+            "properties": {"station": sta, "ve_mm": ve, "vn_mm": vn,
+                           "speed_mm": round(math.hypot(ve, vn), 2), "curated": True},
+        })
+    return feats
+
+
+# ===========================================================================
+# 5. Curated landmark events (plain-language context)
+# ===========================================================================
+def write_landmarks():
+    print("[5/6] Landmark events ...")
+    events = [
+        {"name": "1787 Boqueron earthquake", "year": 1787, "mag": 8.0,
+         "lat": 18.7, "lon": -66.1,
+         "text": "Estimated M~8 off northern Puerto Rico — the largest event in the "
+                 "island's written history. Damaged churches across the island."},
+        {"name": "1867 Virgin Islands earthquake & tsunami", "year": 1867, "mag": 7.3,
+         "lat": 18.0, "lon": -64.9,
+         "text": "M~7.3 in the Anegada Passage. Generated a tsunami that struck the "
+                 "Virgin Islands and eastern Puerto Rico."},
+        {"name": "1918 Mona Passage earthquake & tsunami", "year": 1918, "mag": 7.1,
+         "lat": 18.5, "lon": -67.5,
+         "text": "M7.1 west of Puerto Rico. A tsunami reached the west coast within "
+                 "minutes; about 116 people died, many from the tsunami. The defining "
+                 "event for PR tsunami preparedness."},
+        {"name": "2020 Guanica sequence (M6.4)", "year": 2020, "mag": 6.4,
+         "lat": 17.92, "lon": -66.81,
+         "text": "A prolonged sequence in southwestern PR. The Jan 7, 2020 M6.4 was the "
+                 "most damaging PR earthquake in over a century — collapsed buildings, "
+                 "island-wide power loss, thousands displaced. Thousands of aftershocks."},
+    ]
+    save("landmark_events.json", events)
+    print(f"    -> {len(events)} landmark events")
+
+
+# ===========================================================================
+# 6. Statistics: Gutenberg-Richter b-value, rates, depth/magnitude summary
+# ===========================================================================
+def write_stats(quakes):
+    print("[6/6] Statistics (Gutenberg-Richter, rates) ...")
+    mags = [f["properties"]["mag"] for f in quakes if f["properties"].get("mag") is not None]
+    depths = [f["properties"]["depth"] for f in quakes
+              if f["properties"].get("depth") is not None]
+    times = [f["properties"]["time"] for f in quakes if f["properties"].get("time")]
+
+    # Magnitude of completeness Mc via the "maximum curvature" method:
+    # the magnitude bin with the most events, rounded, plus a small correction.
+    binned = Counter(round(m, 1) for m in mags)
+    mc = (max(binned, key=binned.get) + 0.2) if binned else 2.5
+
+    # Aki (1965) maximum-likelihood b-value for events at/above Mc.
+    above = [m for m in mags if m >= mc]
+    dm = 0.1
+    if len(above) > 50:
+        mean_m = sum(above) / len(above)
+        b = math.log10(math.e) / (mean_m - (mc - dm / 2.0))
+        a = math.log10(len(above)) + b * mc
+    else:
+        b, a = None, None
+
+    # Magnitude-frequency distribution (cumulative N >= M) for the chart.
+    edges = [round(x * 0.1, 1) for x in range(20, 81)]  # M2.0 .. M8.0
+    cumulative = [{"mag": e, "count": sum(1 for m in mags if m >= e)} for e in edges]
+    cumulative = [c for c in cumulative if c["count"] > 0]
+
+    # Time span and annual rates.
+    if times:
+        span_years = (max(times) - min(times)) / (1000.0 * 60 * 60 * 24 * 365.25)
+        span_years = max(span_years, 1.0)
+    else:
+        span_years = 1.0
+
+    def rate_ge(mw):
+        return round(sum(1 for m in mags if m >= mw) / span_years, 2)
+
+    # Depth distribution buckets.
+    depth_buckets = {"0-30 km (shallow)": 0, "30-70 km": 0, "70-150 km": 0, ">150 km (deep)": 0}
+    for d in depths:
+        if d < 30: depth_buckets["0-30 km (shallow)"] += 1
+        elif d < 70: depth_buckets["30-70 km"] += 1
+        elif d < 150: depth_buckets["70-150 km"] += 1
+        else: depth_buckets[">150 km (deep)"] += 1
+
+    stats = {
+        "n_events": len(mags),
+        "span_years": round(span_years, 1),
+        "year_min": _yr(min(times)) if times else None,
+        "year_max": _yr(max(times)) if times else None,
+        "max_mag": max(mags) if mags else None,
+        "mc": round(mc, 1),
+        "b_value": round(b, 2) if b else None,
+        "a_value": round(a, 2) if a else None,
+        "annual_rate_ge3": rate_ge(3.0),
+        "annual_rate_ge4": rate_ge(4.0),
+        "annual_rate_ge5": rate_ge(5.0),
+        "depth_buckets": depth_buckets,
+        "gutenberg_richter": cumulative,
+        # Published long-term hazard context (USGS NSHM PR/USVI; reference only).
+        "hazard_note": ("USGS hazard models classify Puerto Rico as high seismic "
+                        "hazard. Long-term studies estimate a meaningful chance of a "
+                        "damaging (M>=7) earthquake over a ~50-year horizon. These are "
+                        "probabilities over decades, NOT a prediction of any specific date."),
+    }
+    save("stats.json", stats)
+    print(f"    -> b={stats['b_value']} Mc={stats['mc']} N={stats['n_events']} "
+          f"span={stats['span_years']}y")
+
+
+def _yr(ms):
+    import datetime
+    return datetime.datetime.utcfromtimestamp(ms / 1000.0).year
+
+
+# ---------------------------------------------------------------------------
+def empty_fc():
+    return {"type": "FeatureCollection", "features": []}
+
+
+def save(name, obj):
+    path = os.path.join(DATA, name)
+    with open(path, "w") as fh:
+        json.dump(obj, fh)
+    kb = os.path.getsize(path) / 1024.0
+    print(f"    wrote data/{name} ({kb:.0f} KB)")
+
+
+def write_bundle():
+    """Bundle every data file into data/data.js (window.SEIS=...) so the dashboard
+    loads via a <script> tag and works from a double-clicked file:// page (no server)."""
+    print("[bundle] data/data.js ...")
+    files = {"quakes": "pr_quakes.geojson", "plates": "plate_boundary.geojson",
+             "faults": "faults.geojson", "gps": "gps_velocities.geojson",
+             "landmarks": "landmark_events.json", "stats": "stats.json"}
+    bundle = {}
+    for key, fn in files.items():
+        with open(os.path.join(DATA, fn)) as fh:
+            bundle[key] = json.load(fh)
+    path = os.path.join(DATA, "data.js")
+    with open(path, "w") as fh:
+        fh.write("window.SEIS=")
+        json.dump(bundle, fh, separators=(",", ":"))
+        fh.write(";")
+    print(f"    wrote data/data.js ({os.path.getsize(path)/1048576:.1f} MB)")
+
+
+def main():
+    print("Puerto Rico seismic data prep")
+    print("=" * 60)
+    quakes = fetch_quakes()
+    fetch_plate_boundaries()
+    fetch_faults()
+    fetch_gps()
+    write_landmarks()
+    write_stats(quakes)
+    write_bundle()
+    print("=" * 60)
+    print("Done. Open index.html in a browser.")
+
+
+if __name__ == "__main__":
+    sys.exit(main())

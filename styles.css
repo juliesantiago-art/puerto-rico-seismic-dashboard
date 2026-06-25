@@ -1,0 +1,80 @@
+:root{
+  --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --line:#2b333f;
+  --text:#e6edf3; --muted:#9aa7b4; --accent:#4aa8ff; --accent2:#ffd166;
+  --d1:#ff5d5d; --d2:#ff9f40; --d3:#ffd166; --d4:#6fe0c8; --gps:#7ee787;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text)}
+#app{display:flex;height:100vh;width:100vw;overflow:hidden}
+
+/* Sidebar */
+#sidebar{width:360px;min-width:360px;height:100%;overflow-y:auto;background:var(--panel);border-right:1px solid var(--line);padding:0 0 24px}
+#sidebar header{padding:18px 18px 12px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:5}
+#sidebar h1{font-size:18px;margin:0 0 6px;line-height:1.25}
+#sidebar .sub{font-size:12px;color:var(--muted);margin:0;line-height:1.5}
+#sidebar .sub strong{color:var(--accent2)}
+.panel{padding:14px 18px;border-bottom:1px solid var(--line)}
+.panel h2{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0 0 10px}
+.tag{background:var(--accent2);color:#1a1500;font-size:10px;padding:1px 6px;border-radius:8px;letter-spacing:.02em;vertical-align:middle}
+
+/* checkboxes */
+.chk{display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0;cursor:pointer;color:var(--text)}
+.chk input{accent-color:var(--accent)}
+
+/* sliders */
+.row{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin:8px 0 4px}
+.mono{font-variant-numeric:tabular-nums;color:var(--text);font-weight:600}
+input[type=range]{width:100%;accent-color:var(--accent);margin:2px 0 6px}
+.btns{display:flex;gap:8px;margin-top:8px}
+.btns button{flex:1;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px;font-size:12px;cursor:pointer}
+.btns button:hover{border-color:var(--accent);color:var(--accent)}
+.count{font-size:12px;color:var(--muted);margin:8px 0 0}
+
+/* legend */
+.legend .leg-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin:5px 0}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block;flex:none}
+.dot.d1{background:var(--d1)} .dot.d2{background:var(--d2)} .dot.d3{background:var(--d3)} .dot.d4{background:var(--d4)}
+.sz{display:inline-block;border-radius:50%;background:#8aa;flex:none}
+.sz.s1{width:6px;height:6px}.sz.s2{width:11px;height:11px}.sz.s3{width:16px;height:16px}
+.arrow{color:var(--gps);font-weight:700}
+
+/* stats */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.stat{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px}
+.stat .v{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.stat .k{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.3}
+.fine{font-size:11px;color:var(--muted);line-height:1.5;margin:8px 0 0}
+
+#prepare ul{margin:8px 0;padding-left:18px}
+#prepare li{font-size:12.5px;line-height:1.55;margin:5px 0;color:var(--text)}
+#prepare p{font-size:12.5px;line-height:1.55;color:var(--text)}
+#prepare strong{color:var(--accent2)}
+
+footer{padding:14px 18px 0}
+footer p{font-size:10.5px;color:var(--muted);line-height:1.5;margin:0}
+
+/* map */
+#map{flex:1;height:100%;background:#0a0e14}
+#loading{position:absolute;top:50%;left:calc(50% + 180px);transform:translate(-50%,-50%);background:rgba(13,17,23,.9);border:1px solid var(--line);padding:14px 20px;border-radius:10px;font-size:13px;color:var(--muted);z-index:1000}
+
+/* leaflet popups dark */
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--panel2);color:var(--text);box-shadow:0 4px 20px rgba(0,0,0,.5)}
+.leaflet-popup-content{font-size:12.5px;line-height:1.5;margin:10px 12px}
+.leaflet-popup-content b{color:var(--accent)}
+.pp-mag{font-size:16px;font-weight:700}
+.leaflet-container{background:#0a0e14;font-family:inherit}
+.leaflet-bar a{background:var(--panel2);color:var(--text);border-bottom-color:var(--line)}
+.leaflet-bar a:hover{background:var(--panel)}
+
+.lmk{font-size:18px;text-align:center;line-height:24px;text-shadow:0 0 6px #000}
+
+/* Responsive: stack the map on top of the panel on narrow screens so the
+   map never collapses to zero width behind the sidebar. */
+@media (max-width: 900px){
+  #app{flex-direction:column}
+  #map{order:1;width:100%;height:55vh;min-height:300px;flex:none}
+  #sidebar{order:2;width:100%;min-width:0;height:auto;max-height:45vh;
+           border-right:none;border-top:1px solid var(--line)}
+  #sidebar header{position:static}
+  #loading{left:50%}
+}
