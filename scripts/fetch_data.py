@@ -234,13 +234,16 @@ def curated_gps():
     """Approximate published velocities for key PR/Caribbean stations (mm/yr, IGS14).
     Used only if the live MIDAS file cannot be parsed so the layer still renders."""
     raw = [
-        # station, lat, lon, ve, vn  (eastward, northward mm/yr)
-        ("PRN5", 18.20, -67.14, 11.5, 13.8),
-        ("MIPR", 18.46, -67.16, 11.2, 13.5),
-        ("CRO1", 17.76, -64.58, 10.9, 12.7),
-        ("VIEQ", 18.15, -65.44, 11.0, 13.6),
-        ("AOPR", 18.42, -66.76, 11.4, 13.9),
-        ("PUR3", 18.46, -66.12, 11.3, 13.7),
+        # place, lat, lon, ve, vn  (eastward, northward mm/yr) — representative of
+        # coherent Caribbean-plate (PR-VI block) motion, ~18-20 mm/yr toward the ENE.
+        ("Mayaguez", 18.20, -67.14, 16.2, 8.0), ("Aguadilla", 18.46, -67.13, 16.0, 8.4),
+        ("Arecibo", 18.47, -66.70, 16.4, 7.8), ("San Juan", 18.42, -66.05, 15.8, 8.6),
+        ("Fajardo", 18.33, -65.65, 15.9, 8.9), ("Utuado", 18.27, -66.70, 16.1, 8.1),
+        ("Ponce", 18.01, -66.61, 16.6, 7.6), ("Guanica", 17.97, -66.91, 16.8, 7.4),
+        ("Guayama", 17.99, -66.11, 16.3, 7.9), ("Humacao", 18.15, -65.83, 15.7, 9.0),
+        ("Vieques", 18.12, -65.44, 15.6, 9.2), ("Culebra", 18.31, -65.30, 15.5, 9.3),
+        ("St. Thomas", 18.34, -64.93, 15.3, 9.5), ("St. Croix (CRO1)", 17.73, -64.58, 15.0, 9.8),
+        ("Mona Is.", 18.09, -67.94, 17.0, 7.2), ("Desecheo", 18.38, -67.48, 16.5, 7.9),
     ]
     feats = []
     for sta, lat, lon, ve, vn in raw:

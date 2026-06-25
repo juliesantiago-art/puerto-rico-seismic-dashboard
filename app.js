@@ -105,27 +105,41 @@
   });
 
   // ---- GPS land-motion arrows ----------------------------------------------
+  // Each arrow = one location's measured ground motion. Direction = which way the
+  // land is creeping; length & on-hover number = how fast (mm/yr). The whole
+  // PR block drifts together toward the ENE at ~2 cm/yr.
   const gpsLayer = L.layerGroup();
+  const COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+                   "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+  const compass = az => COMPASS[Math.round((((az % 360) + 360) % 360) / 22.5) % 16];
   function buildGPS() {
     const feats = (S.gps && S.gps.features) || [];
-    const SCALE = 0.06; // degrees of arrow length per mm/yr
+    const SCALE = 0.014; // degrees of arrow length per mm/yr
     feats.forEach(f => {
       const [lon, lat] = f.geometry.coordinates;
       const p = f.properties;
-      const tipLon = lon + (p.ve_mm * SCALE) / Math.cos(lat * Math.PI / 180) / 10;
-      const tipLat = lat + (p.vn_mm * SCALE) / 10;
+      const az = (Math.atan2(p.ve_mm, p.vn_mm) * 180 / Math.PI + 360) % 360;
+      const tipLon = lon + (p.ve_mm * SCALE) / Math.cos(lat * Math.PI / 180);
+      const tipLat = lat + (p.vn_mm * SCALE);
+      // shaft (display only)
       L.polyline([[lat, lon], [tipLat, tipLon]],
-        { color: "#7ee787", weight: 2.5, opacity: 0.9 }).addTo(gpsLayer);
-      const ang = Math.atan2(p.ve_mm, p.vn_mm) * 180 / Math.PI; // bearing for arrowhead
-      L.marker([tipLat, tipLon], { icon: L.divIcon({ className: "",
-        html: `<div style="color:#7ee787;transform:rotate(${ang}deg);font-size:14px;line-height:14px">▲</div>`,
-        iconSize: [14, 14], iconAnchor: [7, 7] }) }).addTo(gpsLayer);
-      L.circleMarker([lat, lon], { renderer: canvas, radius: 3, color: "#7ee787",
-        fillColor: "#7ee787", fillOpacity: 1 })
-        .bindPopup(`<b>GPS ${p.station}</b><br>Moving ${p.speed_mm.toFixed(1)} mm/yr<br>` +
-          `East ${p.ve_mm.toFixed(1)} · North ${p.vn_mm.toFixed(1)} mm/yr` +
-          (p.curated ? "<br><i>approx. published value</i>" : ""))
+        { renderer: canvas, interactive: false, color: "#7ee787", weight: 2.5, opacity: 0.9 })
         .addTo(gpsLayer);
+      // base dot (display only)
+      L.circleMarker([lat, lon], { renderer: canvas, interactive: false, radius: 2.5,
+        color: "#7ee787", fillColor: "#0d1117", fillOpacity: 1, weight: 1.5 }).addTo(gpsLayer);
+      // interactive arrowhead (DOM marker → reliably hoverable/clickable)
+      const head = L.marker([tipLat, tipLon], { icon: L.divIcon({ className: "gps-ic",
+        html: `<div class="gps-arrow" style="transform:rotate(${az}deg)">▲</div>`,
+        iconSize: [16, 16], iconAnchor: [8, 8] }) });
+      head.bindTooltip(`${p.station}: ${p.speed_mm.toFixed(1)} mm/yr ${compass(az)}`,
+        { direction: "top", className: "mag-tip gps-tip", opacity: 0.97 });
+      head.bindPopup(`<div class="pp-mag" style="color:#7ee787">${p.station}</div>` +
+        `The ground here is moving <b>${p.speed_mm.toFixed(1)} mm/yr</b> ` +
+        `(${(p.speed_mm / 10).toFixed(1)} cm/yr) toward the <b>${compass(az)}</b>.<br>` +
+        `East ${p.ve_mm.toFixed(1)} · North ${p.vn_mm.toFixed(1)} mm/yr` +
+        (p.curated ? "<br><i>approximate / representative value</i>" : ""));
+      head.addTo(gpsLayer);
     });
   }
 
