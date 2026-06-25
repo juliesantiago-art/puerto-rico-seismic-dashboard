@@ -1,6 +1,6 @@
 :root{
   --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --line:#2b333f;
-  --text:#e6edf3; --muted:#9aa7b4; --accent:#4aa8ff; --accent2:#ffd166;
+  --text:#e6edf3; --muted:#b0bbc7; --accent:#4aa8ff; --accent2:#ffd166;
   --d1:#ff5d5d; --d2:#ff9f40; --d3:#ffd166; --d4:#6fe0c8; --gps:#7ee787;
 }
 *{box-sizing:border-box}

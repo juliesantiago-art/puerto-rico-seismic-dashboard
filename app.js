@@ -4,6 +4,15 @@
 
 (function () {
   "use strict";
+  // Never let the "Loading…" overlay hang forever: if data or a library failed
+  // to load, or anything throws during init, show a clear message + refresh hint.
+  function fail(msg) {
+    const ld = document.getElementById("loading");
+    if (ld) { ld.innerHTML = msg + '<br><br><a href="" onclick="location.reload();return false" style="color:#4aa8ff">Reload ↻</a>'; ld.style.display = "block"; }
+  }
+  if (!window.SEIS) { return fail("Couldn’t load the earthquake data. Please hard-refresh (Cmd/Ctrl+Shift+R)."); }
+  if (typeof L === "undefined") { return fail("The map library didn’t load — check your connection, then refresh."); }
+  try {
   const S = window.SEIS || {};
   const QUAKES = (S.quakes && S.quakes.features) || [];
   const YEAR_MS = 1000 * 60 * 60 * 24 * 365.25;
@@ -127,7 +136,7 @@
   // ---- GPS land-motion arrows ----------------------------------------------
   // Each arrow = one location's measured ground motion. Direction = which way the
   // land is creeping; length & on-hover number = how fast (mm/yr). The whole
-  // PR block drifts together toward the ENE at ~2 cm/yr.
+  // PR block drifts together toward the NE at ~1.5-2 cm/yr.
   const gpsLayer = L.layerGroup();
   const COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
                    "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
@@ -226,8 +235,11 @@
     latest.innerHTML =
       `<div class="lt-mag" style="color:${depthColor(top.depth)}">M ${top.mag.toFixed(1)}</div>` +
       `<div class="lt-meta"><b>${top.place || "Puerto Rico region"}</b><br>` +
-      `${ago(top.time)} · depth ${top.depth} km${mi ? " · " + mi.label + " shaking" : ""}</div>`;
+      `${ago(top.time)} · depth ${top.depth != null ? top.depth + " km" : "—"}${mi ? " · " + mi.label + " shaking" : ""}</div>`;
     latest.onclick = () => quakeFlyTo(top);
+    latest.setAttribute("role", "button");
+    latest.setAttribute("tabindex", "0");
+    latest.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); quakeFlyTo(top); } };
     list.innerHTML = liveData.slice(0, 14).map((q, i) =>
       `<button class="rc" data-i="${i}">` +
       `<span class="rc-m" style="background:${depthColor(q.depth)}">${q.mag.toFixed(1)}</span>` +
@@ -280,7 +292,9 @@
       `<div class="stat"><div class="v">${c[0]}</div><div class="k">${c[1]}</div></div>`).join("");
     document.getElementById("gr-note").textContent = st.hazard_note || "";
 
-    const gr = st.gutenberg_richter || [];
+    // Only plot at/above the catalog's completeness magnitude (Mc) — below it the
+    // record is incomplete and the curve flattens into a misleading plateau.
+    const gr = (st.gutenberg_richter || []).filter(d => d.mag >= (st.mc || 2.5));
     if (gr.length && window.Chart) {
       new Chart(document.getElementById("gr-chart"), {
         type: "line",
@@ -438,10 +452,17 @@
   document.addEventListener("keydown", e => { if (e.key === "Escape") hideAbout(); });
 
   // Ensure canvas renderers pick up the final flex layout size (otherwise the
-  // earthquake canvas can initialise at 0 width and draw nothing).
+  // earthquake canvas can initialise at 0 width and draw nothing). Re-render only
+  // once after layout settles — not on every resize event.
   window.MAP = map;
-  function fixSize() { map.invalidateSize(true); renderQuakes(); }
+  let sized = false;
+  function fixSize() { map.invalidateSize(true); if (!sized) { sized = true; renderQuakes(); } }
   requestAnimationFrame(fixSize);
   window.addEventListener("load", fixSize);
   if (window.ResizeObserver) new ResizeObserver(() => map.invalidateSize()).observe(document.getElementById("map"));
+
+  } catch (err) {
+    console.error(err);
+    fail("Something went wrong building the dashboard: " + ((err && err.message) || err) + ".");
+  }
 })();

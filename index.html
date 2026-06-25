@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Puerto Rico Seismic Dashboard</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="styles.css?v=5" />
+  <link rel="stylesheet" href="styles.css?v=6" />
 </head>
 <body>
 <div id="app">
@@ -59,7 +59,7 @@
       <div class="leg-row"><span class="dot d3"></span> 70–150 km</div>
       <div class="leg-row"><span class="dot d4"></span> &gt;150 km (deep)</div>
       <div class="leg-row"><span class="sz s1"></span><span class="sz s2"></span><span class="sz s3"></span> bigger = stronger</div>
-      <div class="leg-row"><span class="arrow">➜</span> GPS arrow = direction the land is creeping (~2 cm/yr)</div>
+      <div class="leg-row"><span class="arrow">➜</span> GPS arrow = direction the land is creeping (~1.5–2 cm/yr)</div>
     </section>
 
     <section class="panel" id="landmotion">
@@ -87,13 +87,13 @@
 
     <section class="panel" id="magscale">
       <h2>What the magnitude means</h2>
-      <p>The scale is <strong>logarithmic</strong> — each whole step is ~10× bigger shaking and
-        about <strong>32× more energy</strong>. So an M7 isn't “a bit worse” than M6, it releases
-        ~32× the energy.</p>
+      <p>The scale is <strong>logarithmic</strong> — each whole step is ~10× larger seismic-wave
+        amplitude and about <strong>32× more energy</strong>. So an M7 isn't “a bit worse” than M6,
+        it releases ~32× the energy.</p>
       <div class="ms-row"><span class="ms-m">M5</span> felt widely, minor damage</div>
       <div class="ms-row"><span class="ms-m">M6</span> the <b>2020 Guánica</b> M6.4 — serious local damage</div>
       <div class="ms-row"><span class="ms-m">M7</span> the <b>1918 Mona Passage</b> M7.1 — deadly + tsunami</div>
-      <div class="ms-row"><span class="ms-m">M8</span> the <b>1787</b> event — the island's largest known</div>
+      <div class="ms-row"><span class="ms-m">~M8</span> the <b>1787</b> event — the island's largest known (estimated from historical accounts)</div>
     </section>
 
     <section class="panel" id="xsec">
@@ -110,8 +110,8 @@
         waves hit the west coast in <strong>minutes</strong> — there may be no time for an official
         warning. The shaking <em>is</em> your warning.</p>
       <p><strong>If you're near the coast and feel strong or long shaking:</strong> don't wait —
-        move <strong>inland or to high ground</strong> (aim for 30 m / 100 ft elevation or 2 km
-        inland) immediately, and stay until officials say it's safe.</p>
+        move <strong>as high and as far inland as you can</strong> (at least ~30 m / 100 ft elevation
+        or 2 km inland) immediately, and stay until officials say it's safe.</p>
       <div class="ts-links">
         <a href="https://www.tsunami.gov" target="_blank" rel="noopener">NOAA live tsunami alerts ↗</a>
         <a href="http://redsismica.uprm.edu" target="_blank" rel="noopener">Red Sísmica de PR ↗</a>
@@ -150,7 +150,7 @@
   <!-- ===================== MAP ===================== -->
   <main id="map"></main>
   <div id="loading">Loading Puerto Rico seismic data…</div>
-  <button id="help-btn" title="How to read this map">?</button>
+  <button id="help-btn" title="How to read this map" aria-label="How to read this map">?</button>
 </div>
 
 <!-- ===================== ABOUT / INTRO OVERLAY ===================== -->
@@ -172,7 +172,7 @@
       <div class="ab">
         <div class="ab-ic"><span class="arrow">➜</span></div>
         <div><b>Green arrows = the land moving.</b> GPS stations show the crust creeping
-          ~2&nbsp;cm/year as the plates grind — this is the strain that eventually releases as quakes.</div>
+          ~1.5–2&nbsp;cm/year toward the NE as the plates grind — this is the strain that eventually releases as quakes.</div>
       </div>
       <div class="ab">
         <div class="ab-ic">★</div>
@@ -199,6 +199,6 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="data/data.js?v=5"></script>
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>
