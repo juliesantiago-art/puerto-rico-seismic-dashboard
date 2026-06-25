@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Puerto Rico Seismic Dashboard</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="styles.css?v=4" />
+  <link rel="stylesheet" href="styles.css?v=5" />
 </head>
 <body>
 <div id="app">
@@ -16,6 +16,13 @@
       <p class="sub">How the land is moving &amp; where earthquakes happen — built from
         authoritative open data. <strong>Forecasting, not prediction.</strong></p>
     </header>
+
+    <section class="panel" id="recent">
+      <h2>Latest &amp; recent <span class="tag live">live</span></h2>
+      <div id="latest" class="latest">Loading recent quakes…</div>
+      <div id="recent-list" class="recent-list"></div>
+      <p class="fine">Tap any event to fly there. Source: USGS, last 30 days.</p>
+    </section>
 
     <section class="panel">
       <h2>Map layers</h2>
@@ -78,6 +85,42 @@
       <p class="fine" id="gr-note"></p>
     </section>
 
+    <section class="panel" id="magscale">
+      <h2>What the magnitude means</h2>
+      <p>The scale is <strong>logarithmic</strong> — each whole step is ~10× bigger shaking and
+        about <strong>32× more energy</strong>. So an M7 isn't “a bit worse” than M6, it releases
+        ~32× the energy.</p>
+      <div class="ms-row"><span class="ms-m">M5</span> felt widely, minor damage</div>
+      <div class="ms-row"><span class="ms-m">M6</span> the <b>2020 Guánica</b> M6.4 — serious local damage</div>
+      <div class="ms-row"><span class="ms-m">M7</span> the <b>1918 Mona Passage</b> M7.1 — deadly + tsunami</div>
+      <div class="ms-row"><span class="ms-m">M8</span> the <b>1787</b> event — the island's largest known</div>
+    </section>
+
+    <section class="panel" id="xsec">
+      <h2>Cross-section: the slab below</h2>
+      <canvas id="xsection" height="170"></canvas>
+      <p class="fine">Every quake (M≥3.5) plotted by north–south position and depth. The deeper
+        events trace the slab of crust sliding <em>under</em> Puerto Rico — earthquakes here happen
+        from the surface down to ~150 km, not just on top.</p>
+    </section>
+
+    <section class="panel" id="tsunami">
+      <h2>Tsunami safety <span class="tag warn">act fast</span></h2>
+      <p>Puerto Rico's deadliest seismic threat is a <strong>near-field tsunami</strong>. In 1918
+        waves hit the west coast in <strong>minutes</strong> — there may be no time for an official
+        warning. The shaking <em>is</em> your warning.</p>
+      <p><strong>If you're near the coast and feel strong or long shaking:</strong> don't wait —
+        move <strong>inland or to high ground</strong> (aim for 30 m / 100 ft elevation or 2 km
+        inland) immediately, and stay until officials say it's safe.</p>
+      <div class="ts-links">
+        <a href="https://www.tsunami.gov" target="_blank" rel="noopener">NOAA live tsunami alerts ↗</a>
+        <a href="http://redsismica.uprm.edu" target="_blank" rel="noopener">Red Sísmica de PR ↗</a>
+        <a href="https://www.tsunamizone.org" target="_blank" rel="noopener">Evacuation maps &amp; TsunamiReady ↗</a>
+      </div>
+      <p class="fine">Recent quakes that triggered a tsunami evaluation are flagged 🌊 in their popup.
+        Exact evacuation zones come from official PR Planning Board / NOAA maps — know your route in advance.</p>
+    </section>
+
     <section class="panel" id="prepare">
       <h2>What can actually be done?</h2>
       <p><strong>Earthquakes can't be predicted, prevented, or delayed</strong> with today's
@@ -89,13 +132,18 @@
         <li><strong>Building codes &amp; retrofits</strong> — most quake deaths are from buildings, not shaking itself.</li>
         <li><strong>Drills &amp; supplies</strong> — drop, cover, hold on; water, food, meds for days.</li>
       </ul>
+      <div class="ts-links">
+        <a href="https://www.ready.gov/earthquakes" target="_blank" rel="noopener">Build a plan &amp; kit (Ready.gov) ↗</a>
+        <a href="https://www.shakeout.org" target="_blank" rel="noopener">Practice: Great ShakeOut drill ↗</a>
+      </div>
       <p class="fine">This tool helps you <em>understand</em> hazard and watch the land move — it is
-        not an alarm system. For official alerts: Red Sísmica de PR &amp; NOAA Tsunami Warning.</p>
+        not an alarm system. For real-time official alerts use Red Sísmica de PR &amp; NOAA.</p>
     </section>
 
     <footer>
-      <p>Sources: USGS ComCat · Red Sísmica de Puerto Rico (UPRM) · PB2002 plate model ·
-        GEM active faults · Nevada Geodetic Lab GPS · NOAA Caribbean Tsunami Warning Program.</p>
+      <p>Sources: USGS ComCat &amp; ShakeMap/DYFI · Red Sísmica de Puerto Rico (UPRM) ·
+        PB2002 plate model · GEM active faults · JPL GNSS velocities ·
+        NOAA Caribbean Tsunami Warning Program.</p>
     </footer>
   </aside>
 
@@ -150,7 +198,7 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="data/data.js?v=4"></script>
-<script src="app.js?v=4"></script>
+<script src="data/data.js?v=5"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>

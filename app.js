@@ -29,6 +29,26 @@
   }
   function magRadius(m) { return Math.max(2, Math.pow(Math.max(m, 0), 1.7) * 0.7); }
 
+  // Relative "time ago" for the live/recent panel.
+  function ago(ms) {
+    if (!ms) return "";
+    const s = (Date.now() - ms) / 1000;
+    if (s < 90) return Math.round(s) + "s ago";
+    if (s < 5400) return Math.round(s / 60) + " min ago";
+    if (s < 172800) return Math.round(s / 3600) + " h ago";
+    return Math.round(s / 86400) + " d ago";
+  }
+
+  // Modified Mercalli shaking intensity → plain-language label + Roman numeral.
+  function mmiInfo(v) {
+    if (v == null || v < 1.5) return null;
+    const t = [[2, "Weak", "II"], [3.5, "Light", "III"], [4.5, "Moderate", "IV"],
+              [5.5, "Strong", "V"], [6.5, "Very strong", "VI"], [7.5, "Severe", "VII"],
+              [8.5, "Violent", "VIII"], [99, "Extreme", "IX+"]];
+    for (const [lim, label, roman] of t) if (v < lim) return { label, roman };
+    return { label: "Extreme", roman: "IX+" };
+  }
+
   // ---- Earthquake layer ----------------------------------------------------
   const quakeLayer = L.layerGroup();
   let magMin = 3.5, yearMax = 2026;
@@ -168,10 +188,14 @@
       const feats = (fc.features || []);
       liveData = feats.map(f => {
         const c = f.geometry.coordinates, p = f.properties;
+        const inten = Math.max(p.mmi || 0, p.cdi || 0);   // shaking intensity (MMI)
         return { lat: c[1], lon: c[0], mag: p.mag != null ? p.mag : 0,
                  place: p.place, time: p.time,
-                 depth: c[2] != null ? Math.round(c[2]) : null, isLive: true };
+                 depth: c[2] != null ? Math.round(c[2]) : null,
+                 felt: p.felt || 0, mmi: inten || null, tsunami: p.tsunami || 0,
+                 url: p.url, isLive: true };
       });
+      liveData.sort((a, b) => b.time - a.time);
       liveData.forEach(q => {
         L.circleMarker([q.lat, q.lon], {
           renderer: canvas, radius: Math.max(5, magRadius(q.mag) + 2), interactive: false,
@@ -180,10 +204,65 @@
       });
       const note = document.getElementById("live-note");
       if (note) note.textContent = `${feats.length} quakes in the last 30 days — hover or click any blue dot.`;
+      buildRecent();
     }).catch(() => {
       liveLoaded = false;
       const note = document.getElementById("live-note");
       if (note) note.textContent = "Couldn’t reach the USGS live feed (needs internet).";
+    });
+  }
+
+  // ---- Latest & recent quakes panel ----------------------------------------
+  function quakeFlyTo(q) {
+    map.flyTo([q.lat, q.lon], Math.max(map.getZoom(), 10), { duration: 0.8 });
+    L.popup({ offset: [0, -4] }).setLatLng([q.lat, q.lon])
+      .setContent(quakePopupHTML(q)).openOn(map);
+  }
+  function buildRecent() {
+    const latest = document.getElementById("latest");
+    const list = document.getElementById("recent-list");
+    if (!latest || !list || !liveData.length) return;
+    const top = liveData[0], mi = mmiInfo(top.mmi);
+    latest.innerHTML =
+      `<div class="lt-mag" style="color:${depthColor(top.depth)}">M ${top.mag.toFixed(1)}</div>` +
+      `<div class="lt-meta"><b>${top.place || "Puerto Rico region"}</b><br>` +
+      `${ago(top.time)} · depth ${top.depth} km${mi ? " · " + mi.label + " shaking" : ""}</div>`;
+    latest.onclick = () => quakeFlyTo(top);
+    list.innerHTML = liveData.slice(0, 14).map((q, i) =>
+      `<button class="rc" data-i="${i}">` +
+      `<span class="rc-m" style="background:${depthColor(q.depth)}">${q.mag.toFixed(1)}</span>` +
+      `<span class="rc-p">${q.place || "PR region"}</span>` +
+      `<span class="rc-t">${ago(q.time)}${q.felt ? " · felt " + q.felt : ""}</span></button>`).join("");
+    list.querySelectorAll(".rc").forEach(b =>
+      b.addEventListener("click", () => quakeFlyTo(liveData[+b.dataset.i])));
+  }
+
+  // ---- Depth cross-section (the subducting slab) ---------------------------
+  function buildCrossSection() {
+    const el = document.getElementById("xsection");
+    if (!el || !window.Chart) return;
+    const pts = [];
+    for (const f of QUAKES) {
+      const p = f.properties;
+      if (p.mag == null || p.mag < 3.5 || p.depth == null) continue;
+      pts.push({ x: f.geometry.coordinates[1], y: p.depth, d: p.depth });
+    }
+    let data = pts;
+    const SAMPLE = 2500;
+    if (pts.length > SAMPLE) {
+      data = []; const step = pts.length / SAMPLE;
+      for (let i = 0; i < pts.length; i += step) data.push(pts[Math.floor(i)]);
+    }
+    new Chart(el, {
+      type: "scatter",
+      data: { datasets: [{ data: data.map(d => ({ x: d.x, y: d.y })),
+        pointRadius: 1.4, pointBackgroundColor: data.map(d => depthColor(d.d)), pointBorderWidth: 0 }] },
+      options: { plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        scales: {
+          x: { title: { display: true, text: "south  ←  latitude  →  north (trench)", color: "#9aa7b4", font: { size: 9 } },
+               min: 17, max: 19.8, ticks: { color: "#9aa7b4", font: { size: 8 } }, grid: { color: "#222a35" } },
+          y: { reverse: true, title: { display: true, text: "depth (km)", color: "#9aa7b4", font: { size: 9 } },
+               min: 0, max: 220, ticks: { color: "#9aa7b4", font: { size: 8 } }, grid: { color: "#222a35" } } } },
     });
   }
 
@@ -226,7 +305,7 @@
     el.addEventListener("change", () => el.checked ? layer.addTo(map) : map.removeLayer(layer));
   }
 
-  buildTectonics(); buildGPS(); buildLandmarks(); buildStats(); renderQuakes();
+  buildTectonics(); buildGPS(); buildLandmarks(); buildStats(); buildCrossSection(); renderQuakes();
   quakeLayer.addTo(map); tectLayer.addTo(map); gpsLayer.addTo(map); landmarkLayer.addTo(map);
 
   toggle("lyr-quakes", quakeLayer);
@@ -246,29 +325,35 @@
   // on a tiny marker. Live quakes win ties.
   function quakePopupHTML(q) {
     const col = q.isLive ? "#4aa8ff" : depthColor(q.depth);
-    return `<div class="pp-mag" style="color:${col}">M ${q.mag.toFixed(1)}${q.isLive ? " · LIVE" : ""}</div>` +
+    let html = `<div class="pp-mag" style="color:${col}">M ${q.mag.toFixed(1)}${q.isLive ? " · LIVE" : ""}</div>` +
       `<b>${q.place || "Puerto Rico region"}</b><br>` +
-      `${fmtDate(q.time)} · depth ${q.depth != null ? q.depth + " km" : "—"}`;
+      `${q.isLive ? ago(q.time) + " · " : ""}${fmtDate(q.time)} · depth ${q.depth != null ? q.depth + " km" : "—"}`;
+    const mi = mmiInfo(q.mmi);
+    if (mi) html += `<br><span class="pp-int">Shaking: ${mi.label} (${mi.roman})</span>`;
+    if (q.felt) html += `<br>Felt by ${q.felt} ${q.felt === 1 ? "person" : "people"}`;
+    if (q.tsunami) html += `<br>🌊 tsunami evaluation issued`;
+    if (q.url) html += `<br><a href="${q.url}" target="_blank" rel="noopener">USGS details ↗</a>`;
+    return html;
   }
   map.on("click", e => {
     const cp = e.containerPoint;
     let best = null, bestScore = Infinity;
-    const consider = (lat, lon, mag, place, time, depth, isLive) => {
-      const p = map.latLngToContainerPoint([lat, lon]);
+    const consider = (rec, isLive) => {
+      const p = map.latLngToContainerPoint([rec.lat, rec.lon]);
       const d = Math.hypot(p.x - cp.x, p.y - cp.y);
-      const r = isLive ? Math.max(5, magRadius(mag) + 2) : Math.max(3, magRadius(mag));
+      const r = isLive ? Math.max(5, magRadius(rec.mag) + 2) : Math.max(3, magRadius(rec.mag));
       if (d > r + 8) return;                       // 8px grace radius
       const score = d - r - (isLive ? 6 : 0);      // prefer live + bigger dots
-      if (score < bestScore) { bestScore = score; best = { lat, lon, mag, place, time, depth, isLive }; }
+      if (score < bestScore) { bestScore = score; best = rec; }
     };
-    liveData.forEach(q => consider(q.lat, q.lon, q.mag, q.place, q.time, q.depth, true));
+    liveData.forEach(q => consider(q, true));
     const cutoff = Date.UTC(yearMax + 1, 0, 1);
     for (const f of QUAKES) {
       const p = f.properties;
       if (p.mag == null || p.mag < magMin) continue;
       if (p.time && p.time >= cutoff) continue;
       const c = f.geometry.coordinates;
-      consider(c[1], c[0], p.mag, p.place, p.time, p.depth, false);
+      consider({ lat: c[1], lon: c[0], mag: p.mag, place: p.place, time: p.time, depth: p.depth, isLive: false }, false);
     }
     if (best) {
       L.popup({ offset: [0, -4] }).setLatLng([best.lat, best.lon])
