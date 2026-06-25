@@ -291,6 +291,7 @@
   const exLayer = L.layerGroup();   // alarm-zone outline + hit/miss dots (above)
   let fcExercise = "live";          // 'live' | 'retro'
   let fcPct = (FC && FC.meta && FC.meta.recommended_top_pct) || 20;
+  let fcCurveChart = null;
 
   function fcCellIndex(lat, lon) {
     const m = FC.meta;
@@ -367,8 +368,61 @@
       ? `Trained <b>only on pre-2019 data</b>, so it can't know the Guánica fault would rupture — its hot zone honestly sits in the NE (Virgin Islands). It still lands ${(hitRate * 100).toFixed(0)}% of the ${scored} sequence events in the top ${fcPct}% area (<b>${lift.toFixed(1)}× chance</b>). The red misses are the real surprises.`
       : (scored ? `Trained on data up to ~35 days ago, scored against the live last-30-day feed: <b>${hits}/${scored}</b> recent events fell in the top ${fcPct}% likelihood area (<b>${lift.toFixed(1)}× chance</b>).`
                 : `Waiting for the live feed… (or no recent events in range).`);
+    if (fcCurveChart) {
+      fcCurveChart.data.datasets[2].data = scored ? [{ x: fcPct, y: hitRate * 100 }] : [];
+      fcCurveChart.update("none");
+    }
   }
-  function applyExercise() { if (map.hasLayer(fcLayer)) renderForecastHeat(); scoreForecast(); }
+  // Skill curve (Molchan-style): % of quakes caught vs % of area "alarmed".
+  function fcSkillCurve() {
+    const grid = FC[fcExercise].grid;
+    const order = grid.map((p, i) => [p, i]).sort((a, b) => b[0] - a[0]);
+    const rank = new Array(grid.length);
+    order.forEach((pi, r) => { rank[pi[1]] = r; });
+    const N = grid.length, evRanks = [];
+    fcTestEvents().forEach(e => { const idx = fcCellIndex(e.lat, e.lon); if (idx >= 0) evRanks.push(rank[idx] / N); });
+    const total = evRanks.length, steps = 25, curve = [];
+    for (let k = 0; k <= steps; k++) {
+      const a = k / steps;
+      curve.push({ x: a * 100, y: total ? evRanks.filter(r => r < a + 1e-9).length / total * 100 : 0 });
+    }
+    return curve;
+  }
+  function renderSkillCurve() {
+    const el = document.getElementById("fc-curve");
+    if (!el || !window.Chart) return;
+    if (fcCurveChart) { fcCurveChart.destroy(); fcCurveChart = null; }
+    fcCurveChart = new Chart(el, { type: "line",
+      data: { datasets: [
+        { data: fcSkillCurve(), borderColor: "#9b4dca", backgroundColor: "rgba(155,77,202,.15)", borderWidth: 2, pointRadius: 0, fill: true, tension: .2 },
+        { data: [{ x: 0, y: 0 }, { x: 100, y: 100 }], borderColor: "#6b7785", borderWidth: 1, borderDash: [4, 4], pointRadius: 0 },
+        { data: [], borderColor: "#ffd166", backgroundColor: "#ffd166", pointRadius: 4, showLine: false } ] },
+      options: { parsing: false, plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        scales: {
+          x: { type: "linear", min: 0, max: 100, title: { display: true, text: "alarm area (% of region)", color: "#b0bbc7", font: { size: 9 } }, ticks: { color: "#b0bbc7", font: { size: 8 } }, grid: { color: "#222a35" } },
+          y: { min: 0, max: 100, title: { display: true, text: "% of quakes caught", color: "#b0bbc7", font: { size: 9 } }, ticks: { color: "#b0bbc7", font: { size: 8 } }, grid: { color: "#222a35" } } } } });
+  }
+
+  // Rolling prospective back-test: lift per calendar quarter (trained only on the past).
+  function buildRolling() {
+    const el = document.getElementById("fc-rolling");
+    if (!el || !window.Chart || !FC || !FC.rolling) { const w = document.getElementById("fc-rolling-wrap"); if (w && !(FC && FC.rolling)) w.style.display = "none"; return; }
+    const series = FC.rolling.series.filter(s => s.lift != null);
+    const pts = series.map(s => ({ x: s.start, y: s.lift }));
+    const colors = series.map(s => s.lift >= 1 ? "#7ee787" : "#ff5d5d");
+    new Chart(el, { type: "line",
+      data: { labels: series.map(s => s.start),
+        datasets: [
+          { data: pts.map(p => p.y), borderColor: "#7ee787", borderWidth: 1.5, pointRadius: 2.5, pointBackgroundColor: colors, pointBorderWidth: 0, tension: .15 },
+          { data: series.map(() => 1), borderColor: "#6b7785", borderWidth: 1, borderDash: [4, 4], pointRadius: 0 } ] },
+      options: { plugins: { legend: { display: false },
+          tooltip: { callbacks: { title: c => c[0].label, label: c => `${c.raw}× random (${series[c.dataIndex].nEvents} quakes)` } } },
+        scales: {
+          x: { ticks: { color: "#b0bbc7", font: { size: 8 }, maxTicksLimit: 7, callback: function (v) { const l = this.getLabelForValue(v); return l ? l.slice(0, 4) : l; } }, grid: { color: "#222a35" } },
+          y: { min: 0, title: { display: true, text: "× better than random", color: "#b0bbc7", font: { size: 9 } }, ticks: { color: "#b0bbc7", font: { size: 8 } }, grid: { color: "#222a35" } } } } });
+  }
+
+  function applyExercise() { if (map.hasLayer(fcLayer)) renderForecastHeat(); renderSkillCurve(); scoreForecast(); }
   function buildForecast() {
     if (!FC) {
       ["forecast", "lyr-forecast-row"].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = "none"; });
@@ -376,7 +430,7 @@
     }
     document.getElementById("fc-pct").textContent = fcPct + "%";
     document.getElementById("fc-slider").value = fcPct;
-    scoreForecast();
+    renderSkillCurve(); scoreForecast(); buildRolling();
   }
 
   // ---- Stats panel + Gutenberg-Richter chart -------------------------------

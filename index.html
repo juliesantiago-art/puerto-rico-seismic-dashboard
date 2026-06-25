@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Puerto Rico Seismic Dashboard</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="styles.css?v=7" />
+  <link rel="stylesheet" href="styles.css?v=8" />
 </head>
 <body>
 <div id="app">
@@ -100,6 +100,21 @@
       <div id="fc-stats" class="stat-grid"></div>
       <label class="chk"><input type="checkbox" id="fc-showmap"> Show forecast &amp; hits/misses on map</label>
       <p class="fine" id="fc-note"></p>
+
+      <h3 class="fc-sub">Skill curve</h3>
+      <canvas id="fc-curve" height="150"></canvas>
+      <p class="fine">% of quakes caught vs % of area you alarm. <span style="color:#9b4dca">Purple</span>
+        above the dashed “random” line = skill. The <span style="color:#ffd166">yellow dot</span> is your
+        slider. A steep early rise = the model concentrates risk well.</p>
+
+      <div id="fc-rolling-wrap">
+        <h3 class="fc-sub">Rolling test: would it call the next quarter?</h3>
+        <canvas id="fc-rolling" height="150"></canvas>
+        <p class="fine">Each point = one quarter, the model trained <em>only on the past</em> and scored on
+          that quarter's quakes. Above 1× = better than random (median ≈ <b>2.9×</b>). Note the
+          <span style="color:#ff5d5d">dive below 1×</span> at the <b>2020 Guánica onset</b> — the model
+          couldn't see it coming — then the rebound once aftershocks entered the training data.</p>
+      </div>
     </section>
 
     <section class="panel" id="magscale">
@@ -215,7 +230,7 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="data/data.js?v=7"></script>
-<script src="app.js?v=7"></script>
+<script src="data/data.js?v=8"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

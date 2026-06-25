@@ -92,6 +92,9 @@ footer p{font-size:10.5px;color:var(--muted);line-height:1.5;margin:0}
 #forecast .stat-grid{margin:10px 0}
 #forecast .stat .v{font-size:18px}
 #fc-note{min-height:1em}
+.fc-sub{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);
+  margin:16px 0 6px;font-weight:600}
+#forecast canvas{background:#0c1016;border:1px solid var(--line);border-radius:6px;padding:4px;margin-top:2px}
 
 /* popup intensity line */
 .pp-int{color:#ffd166;font-weight:600}
