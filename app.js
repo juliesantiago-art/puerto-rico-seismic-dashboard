@@ -14,12 +14,10 @@
   L.tileLayer("https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png", {
     attribution: "&copy; OpenStreetMap &copy; CARTO", subdomains: "abcd", maxZoom: 19,
   }).addTo(map);
+  // Single shared canvas renderer for ALL circle markers (historical + live + GPS).
+  // Keeping everything on one canvas is what makes every dot clickable — a second
+  // stacked canvas would intercept clicks meant for the layer beneath it.
   const canvas = L.canvas({ padding: 0.5 });
-  // Dedicated top pane + renderer for live quakes so they always sit ABOVE the
-  // dense historical layer and stay clickable even after the slider re-renders.
-  map.createPane("livePane");
-  map.getPane("livePane").style.zIndex = 450;
-  const liveRenderer = L.canvas({ pane: "livePane", padding: 0.5 });
 
   // ---- Depth color / magnitude size ---------------------------------------
   function depthColor(d) {
@@ -34,6 +32,7 @@
   // ---- Earthquake layer ----------------------------------------------------
   const quakeLayer = L.layerGroup();
   let magMin = 3.5, yearMax = 2026;
+  let liveData = []; // recent quakes (lat/lon/mag/...) for the click+hover handler
 
   function fmtDate(ms) {
     if (!ms) return "—";
@@ -50,21 +49,24 @@
       if (p.mag == null || p.mag < magMin) continue;
       if (p.time && p.time >= cutoff) continue;
       const c = f.geometry.coordinates;
-      const mk = L.circleMarker([c[1], c[0]], {
-        renderer: canvas, radius: magRadius(p.mag),
+      // Display-only: clicks are handled by the map-level handler below so they
+      // are reliable and forgiving (a second stacked canvas would otherwise eat
+      // per-dot clicks). interactive:false lets the map click fall through.
+      quakeLayer.addLayer(L.circleMarker([c[1], c[0]], {
+        renderer: canvas, radius: magRadius(p.mag), interactive: false,
         color: depthColor(p.depth), weight: 0.6, fillColor: depthColor(p.depth),
         fillOpacity: 0.55, opacity: 0.9,
-      });
-      mk.bindPopup(
-        `<div class="pp-mag" style="color:${depthColor(p.depth)}">M ${p.mag.toFixed(1)}</div>` +
-        `<b>${p.place || "Puerto Rico region"}</b><br>` +
-        `${fmtDate(p.time)} &nbsp;·&nbsp; depth ${p.depth != null ? p.depth + " km" : "—"}`
-      );
-      quakeLayer.addLayer(mk);
+      }));
       n++;
     }
     document.getElementById("count").textContent =
       `${n.toLocaleString()} events shown  (M ≥ ${magMin.toFixed(1)}, through ${yearMax})`;
+    // Re-draw the live layer last so the blue "recent" dots stay on top of the
+    // freshly-rendered historical dots (same canvas, so all stay clickable).
+    if (typeof liveLayer !== "undefined" && map.hasLayer(liveLayer)) {
+      liveLayer.removeFrom(map);
+      liveLayer.addTo(map);
+    }
   }
 
   // ---- Tectonics: plate boundary (data) + curated trenches/troughs ---------
@@ -150,18 +152,17 @@
       "&minlatitude=17&maxlatitude=19.75&minlongitude=-68.5&maxlongitude=-64&minmagnitude=2";
     fetch(url).then(r => r.json()).then(fc => {
       const feats = (fc.features || []);
-      feats.forEach(f => {
+      liveData = feats.map(f => {
         const c = f.geometry.coordinates, p = f.properties;
-        const mag = p.mag != null ? p.mag : 0;
-        L.circleMarker([c[1], c[0]], {
-          renderer: liveRenderer, radius: Math.max(5, magRadius(mag) + 2),
-          color: "#4aa8ff", weight: 2.5, fillColor: depthColor(c[2]), fillOpacity: 0.75,
-        })
-          .bindTooltip(`M ${mag.toFixed(1)}`, { direction: "top", offset: [0, -2],
-            className: "mag-tip", opacity: 0.97 })
-          .bindPopup(`<div class="pp-mag" style="color:#4aa8ff">M ${mag.toFixed(1)} · LIVE</div>` +
-            `<b>${p.place || ""}</b><br>${fmtDate(p.time)} · depth ${Math.round(c[2])} km`)
-          .addTo(liveLayer);
+        return { lat: c[1], lon: c[0], mag: p.mag != null ? p.mag : 0,
+                 place: p.place, time: p.time,
+                 depth: c[2] != null ? Math.round(c[2]) : null, isLive: true };
+      });
+      liveData.forEach(q => {
+        L.circleMarker([q.lat, q.lon], {
+          renderer: canvas, radius: Math.max(5, magRadius(q.mag) + 2), interactive: false,
+          color: "#4aa8ff", weight: 2.5, fillColor: depthColor(q.depth), fillOpacity: 0.8,
+        }).addTo(liveLayer);
       });
       const note = document.getElementById("live-note");
       if (note) note.textContent = `${feats.length} quakes in the last 30 days — hover or click any blue dot.`;
@@ -224,6 +225,63 @@
     if (e.target.checked) { loadLive(); liveLayer.addTo(map); } else map.removeLayer(liveLayer);
   });
   if (liveCb.checked) { loadLive(); liveLayer.addTo(map); } // on by default
+
+  // ---- Click anywhere to identify the nearest earthquake -------------------
+  // Robust + forgiving: searches the visible historical catalog and the live
+  // feed for the closest dot to the click, so you never have to land precisely
+  // on a tiny marker. Live quakes win ties.
+  function quakePopupHTML(q) {
+    const col = q.isLive ? "#4aa8ff" : depthColor(q.depth);
+    return `<div class="pp-mag" style="color:${col}">M ${q.mag.toFixed(1)}${q.isLive ? " · LIVE" : ""}</div>` +
+      `<b>${q.place || "Puerto Rico region"}</b><br>` +
+      `${fmtDate(q.time)} · depth ${q.depth != null ? q.depth + " km" : "—"}`;
+  }
+  map.on("click", e => {
+    const cp = e.containerPoint;
+    let best = null, bestScore = Infinity;
+    const consider = (lat, lon, mag, place, time, depth, isLive) => {
+      const p = map.latLngToContainerPoint([lat, lon]);
+      const d = Math.hypot(p.x - cp.x, p.y - cp.y);
+      const r = isLive ? Math.max(5, magRadius(mag) + 2) : Math.max(3, magRadius(mag));
+      if (d > r + 8) return;                       // 8px grace radius
+      const score = d - r - (isLive ? 6 : 0);      // prefer live + bigger dots
+      if (score < bestScore) { bestScore = score; best = { lat, lon, mag, place, time, depth, isLive }; }
+    };
+    liveData.forEach(q => consider(q.lat, q.lon, q.mag, q.place, q.time, q.depth, true));
+    const cutoff = Date.UTC(yearMax + 1, 0, 1);
+    for (const f of QUAKES) {
+      const p = f.properties;
+      if (p.mag == null || p.mag < magMin) continue;
+      if (p.time && p.time >= cutoff) continue;
+      const c = f.geometry.coordinates;
+      consider(c[1], c[0], p.mag, p.place, p.time, p.depth, false);
+    }
+    if (best) {
+      L.popup({ offset: [0, -4] }).setLatLng([best.lat, best.lon])
+        .setContent(quakePopupHTML(best)).openOn(map);
+    }
+  });
+
+  // Hover the recent (blue) quakes to see their magnitude without clicking.
+  const hoverTip = L.tooltip({ direction: "top", offset: [0, -6], className: "mag-tip", opacity: 0.97 });
+  let hoverOn = false;
+  map.on("mousemove", e => {
+    const cp = e.containerPoint;
+    let best = null, bestD = Infinity;
+    for (const q of liveData) {
+      const p = map.latLngToContainerPoint([q.lat, q.lon]);
+      const d = Math.hypot(p.x - cp.x, p.y - cp.y);
+      const r = Math.max(5, magRadius(q.mag) + 2);
+      if (d <= r + 3 && d < bestD) { bestD = d; best = q; }
+    }
+    if (best) {
+      hoverTip.setLatLng([best.lat, best.lon]).setContent(`M ${best.mag.toFixed(1)}`);
+      if (!hoverOn) { hoverTip.addTo(map); hoverOn = true; }
+      map.getContainer().style.cursor = "pointer";
+    } else if (hoverOn) {
+      map.removeLayer(hoverTip); hoverOn = false; map.getContainer().style.cursor = "";
+    }
+  });
 
   const magEl = document.getElementById("mag-min"), yearEl = document.getElementById("year");
   magEl.addEventListener("input", () => {
