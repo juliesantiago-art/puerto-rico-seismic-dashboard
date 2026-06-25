@@ -18,17 +18,19 @@ and the optional "Live recent quakes" layer.)
 
 ## What you can do
 
+- **Click anywhere on the map** to identify the nearest earthquake — magnitude, depth,
+  date, and (for recent events) shaking intensity and felt-report counts.
 - **See every significant earthquake** near Puerto Rico from 1915 to today (43,000+
-  events), colored by depth and sized by magnitude.
-- **Press "Play 2018–2021"** to watch the 2019–2020 Guánica earthquake sequence build
-  up and unfold year by year.
-- **Toggle layers**: the plate boundary and trenches, mapped faults, **GPS arrows**
-  showing the direction the land is creeping (~2 cm/year), and historic landmark
-  events (1918 Mona Passage tsunami, 2020 Guánica M6.4).
-- **Filter** by minimum magnitude and time with the sliders.
-- **Read the Risk snapshot**: a Gutenberg–Richter frequency chart, b-value, event
-  rates, and the long-term hazard context — clearly labeled as *probabilistic
-  forecasting, not prediction*.
+  events), colored by depth and sized by magnitude, plus a **live "Latest & recent"**
+  list (last 30 days) — tap any event to fly to it.
+- **Press "Play 2018–2021"** to watch the 2019–2020 Guánica sequence unfold year by year.
+- **Toggle layers**: plate boundary & trenches, mapped faults, **GPS land-motion arrows**
+  (~1.5–2 cm/year toward the NNE), landmark events, and the **forecast likelihood heatmap**.
+- **Run the forecast experiment** ("Forecast vs. reality"): a smoothed-seismicity model
+  predicts *where* quakes are likely; score real events as hits/misses with an adjustable
+  alarm-zone slider, a skill curve, and a rolling quarter-by-quarter back-test.
+- **Read the Risk snapshot** (Gutenberg–Richter chart, b-value, rates), the **magnitude
+  primer**, the **depth cross-section** (the subducting slab), and **Tsunami safety**.
 
 ## The tectonic picture
 
@@ -40,8 +42,8 @@ American and Caribbean plates**:
 - **Mona Passage** (west) — the rift zone that produced the deadly **1918 M7.1
   earthquake and tsunami**.
 
-The land moves roughly **2 cm/year**. Strain builds on locked faults and releases as
-earthquakes — which is exactly what the map shows.
+The land moves roughly **1.5–2 cm/year** toward the north-northeast. Strain builds on
+locked faults and releases as earthquakes — which is exactly what the map shows.
 
 ## Where the data comes from
 
@@ -52,9 +54,11 @@ earthquakes — which is exactly what the map shows.
 | Live recent quakes | USGS real-time feed |
 | Plate boundary | **PB2002** plate model (Bird, 2003) |
 | Active faults | **GEM** Global Active Faults database |
-| Land-motion (GPS) | **Nevada Geodetic Lab** (MIDAS); curated Caribbean stations as fallback |
+| Land-motion (GPS) | **JPL** GNSS velocities (IGS14); curated Caribbean stations as fallback |
+| Shaking intensity / felt | **USGS ShakeMap & "Did You Feel It?"** |
 | Tsunami / preparedness | **NOAA Caribbean Tsunami Warning Program** |
 | Hazard context | **USGS National Seismic Hazard Model** (PR & USVI) |
+| Forecast model | Smoothed-seismicity (10 km Gaussian kernel), back-tested in `data/forecast.json` |
 
 ## Refreshing the data (optional)
 
@@ -70,11 +74,14 @@ This uses only the Python standard library (no installs) and rewrites everything
 ## Files
 
 ```
-index.html            the dashboard
-app.js                map, layers, filters, charts, live feed
-styles.css            styling (responsive)
-data/                 pre-fetched datasets + data.js bundle
-scripts/fetch_data.py one-time / refresh data fetcher
+index.html              the dashboard
+app.js                  map, layers, filters, charts, live feed, forecast experiment
+styles.css              styling (responsive, collapsible panels)
+data/data.js            the bundle the dashboard loads (all datasets, gzipped on serve)
+data/forecast.json      forecast grids + retro/rolling back-test results
+data/stats.json         Gutenberg–Richter / b-value / rates
+data/*.geojson          catalog, plate boundary, faults, GPS, landmarks
+scripts/fetch_data.py   one-time / refresh data fetcher
 ```
 
 ## Limits (stated plainly)

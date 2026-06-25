@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Puerto Rico Seismic Dashboard</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="styles.css?v=8" />
+  <link rel="stylesheet" href="styles.css?v=9" />
 </head>
 <body>
 <div id="app">
@@ -53,7 +53,7 @@
       <p id="count" class="count">—</p>
     </section>
 
-    <section class="panel legend">
+    <section class="panel legend collapsible">
       <h2>Legend</h2>
       <div class="leg-row"><span class="dot d1"></span> 0–30 km (shallow)</div>
       <div class="leg-row"><span class="dot d2"></span> 30–70 km</div>
@@ -63,11 +63,11 @@
       <div class="leg-row"><span class="arrow">➜</span> GPS arrow = direction the land is creeping (~1.5–2 cm/yr)</div>
     </section>
 
-    <section class="panel" id="landmotion">
+    <section class="panel collapsible" id="landmotion">
       <h2>How the land is moving</h2>
       <div class="lm-big">≈ 1.5–2 cm / year</div>
-      <p>All of Puerto Rico is drifting <strong>toward the NE</strong> — as one nearly-rigid
-        block — at about the speed your fingernails grow. The green arrows are real GPS stations;
+      <p>All of Puerto Rico is drifting <strong>toward the north-northeast</strong> — as one
+        nearly-rigid block — at about the speed your fingernails grow. The green arrows are real GPS stations;
         each shows which way and how fast the ground there is actually creeping.</p>
       <p>It rides the <strong>Caribbean plate</strong>, grinding past the North American plate
         along the <strong>Puerto Rico Trench</strong> to the north. That motion is locked up on
@@ -75,22 +75,26 @@
         <strong>Mona Passage</strong> is slowly pulling apart (the 1918 source).</p>
       <div class="lm-scale"><span class="lm-arrow">➜</span> longer arrow = faster · hover or
         click an arrow for its exact speed &amp; direction</div>
-      <p class="fine">GPS vectors are real measured velocities from JPL’s GNSS network
-        (IGS14 frame, epoch 2026.0). Toggle “Land motion (GPS)” to show/hide.</p>
+      <p class="fine">GPS vectors are real measured velocities from JPL’s global GNSS network.
+        Toggle “Land motion (GPS)” to show/hide.</p>
     </section>
 
-    <section class="panel" id="risk">
-      <h2>Risk snapshot <span class="tag">forecast</span></h2>
+    <section class="panel collapsible" id="risk">
+      <h2>Risk snapshot <span class="tag">hazard</span></h2>
       <div id="stat-grid" class="stat-grid"></div>
+      <p class="fine">Smaller quakes are far more common than big ones — each step down in magnitude
+        means roughly 10× as many. The line below shows that (note the log scale):</p>
       <canvas id="gr-chart" height="150"></canvas>
       <p class="fine" id="gr-note"></p>
     </section>
 
-    <section class="panel" id="forecast">
+    <section class="panel collapsible" id="forecast">
       <h2>🔮 Forecast vs. reality <span class="tag">experiment</span></h2>
-      <p class="fine">A smoothed-seismicity model forecasts <em>where</em> earthquakes are likely;
-        we then score real events as hits/misses. It forecasts probability by location —
-        <strong>not specific quakes, times, or magnitudes.</strong></p>
+      <p class="fine">A model forecasts <em>where</em> quakes are likely, then we check real events
+        against it: <span style="color:#7ee787">green = caught</span>, <span style="color:#ff5d5d">red = a
+        surprise it missed</span>. Drag the slider to make the “likely zone” bigger (catches more, but
+        cries wolf more). It forecasts probability <em>by location</em> — <strong>not specific quakes,
+        times, or magnitudes.</strong></p>
       <div class="fc-tabs">
         <button class="fc-tab active" data-ex="live">Live · 30 days</button>
         <button class="fc-tab" data-ex="retro">2019–20 Guánica</button>
@@ -117,7 +121,7 @@
       </div>
     </section>
 
-    <section class="panel" id="magscale">
+    <section class="panel collapsible" id="magscale">
       <h2>What the magnitude means</h2>
       <p>The scale is <strong>logarithmic</strong> — each whole step is ~10× larger seismic-wave
         amplitude and about <strong>32× more energy</strong>. So an M7 isn't “a bit worse” than M6,
@@ -128,7 +132,7 @@
       <div class="ms-row"><span class="ms-m">~M8</span> the <b>1787</b> event — the island's largest known (estimated from historical accounts)</div>
     </section>
 
-    <section class="panel" id="xsec">
+    <section class="panel collapsible" id="xsec">
       <h2>Cross-section: the slab below</h2>
       <canvas id="xsection" height="170"></canvas>
       <p class="fine">Every quake (M≥3.5) plotted by north–south position and depth. The deeper
@@ -183,6 +187,8 @@
   <main id="map"></main>
   <div id="loading">Loading Puerto Rico seismic data…</div>
   <button id="help-btn" title="How to read this map" aria-label="How to read this map">?</button>
+  <div id="map-hint">👆 Click anywhere on the map to identify the nearest quake
+    <button id="map-hint-x" aria-label="Dismiss">×</button></div>
 </div>
 
 <!-- ===================== ABOUT / INTRO OVERLAY ===================== -->
@@ -192,9 +198,14 @@
     <h2>How to read this map</h2>
     <p class="lead">A live look at where earthquakes happen around <strong>Puerto Rico</strong>,
       how the land is slowly moving, and what the long-term hazard looks like — built from
-      authoritative open data (USGS, GEM, NGL).</p>
+      authoritative open data (USGS, GEM, JPL).</p>
 
     <div class="about-grid">
+      <div class="ab">
+        <div class="ab-ic">👆</div>
+        <div><b>Click anywhere on the map</b> to identify the nearest earthquake — its magnitude,
+          depth, date, and (for recent ones) how hard it shook.</div>
+      </div>
       <div class="ab">
         <div class="ab-ic"><span class="dot d1"></span><span class="dot d3"></span><span class="dot d4"></span></div>
         <div><b>The dots are earthquakes.</b> Color = how deep (red = shallow → teal = deep).
@@ -203,18 +214,13 @@
       </div>
       <div class="ab">
         <div class="ab-ic"><span class="arrow">➜</span></div>
-        <div><b>Green arrows = the land moving.</b> GPS stations show the crust creeping
-          ~1.5–2&nbsp;cm/year toward the NE as the plates grind — this is the strain that eventually releases as quakes.</div>
+        <div><b>Green arrows = the land moving.</b> Real GPS stations show the crust creeping
+          ~1.5–2&nbsp;cm/year toward the north-northeast — the strain that eventually releases as quakes.</div>
       </div>
       <div class="ab">
-        <div class="ab-ic">★</div>
-        <div><b>Stars are landmark events</b> — click them for the story (e.g. the deadly
-          <b>1918 Mona Passage</b> earthquake &amp; tsunami).</div>
-      </div>
-      <div class="ab">
-        <div class="ab-ic">▶</div>
-        <div><b>Press “Play 2018–2021”</b> to watch the Guánica sequence build up year by year.
-          Use the sliders to filter by size and time, and the checkboxes to toggle layers.</div>
+        <div class="ab-ic">🌊</div>
+        <div><b>Near the coast?</b> The <b>Tsunami safety</b> panel (in the sidebar) is the one to read —
+          Puerto Rico's biggest threat, and minutes matter.</div>
       </div>
     </div>
 
@@ -231,6 +237,6 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="data/data.js?v=8"></script>
-<script src="app.js?v=8"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>

@@ -15,6 +15,15 @@ html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Seg
 #sidebar .sub strong{color:var(--accent2)}
 .panel{padding:14px 18px;border-bottom:1px solid var(--line)}
 .panel h2{font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0 0 10px}
+
+/* Collapsible panels — keep the sidebar scannable for first-time visitors */
+.panel.collapsible > h2{cursor:pointer;position:relative;padding-right:20px}
+.panel.collapsible > h2::after{content:"▾";position:absolute;right:0;top:1px;color:var(--accent);
+  font-size:11px;transition:transform .2s}
+.panel.collapsible:not(.open) > h2::after{transform:rotate(-90deg)}
+.panel.collapsible:not(.open) > h2{margin-bottom:0}
+.panel.collapsible:not(.open) > *:not(h2){display:none !important}
+.panel.collapsible > h2:hover{color:var(--text)}
 .tag{background:var(--accent2);color:#1a1500;font-size:10px;padding:1px 6px;border-radius:8px;letter-spacing:.02em;vertical-align:middle}
 
 /* checkboxes */
@@ -173,13 +182,29 @@ footer p{font-size:10.5px;color:var(--muted);line-height:1.5;margin:0}
   padding:11px;font-size:14px;font-weight:600;cursor:pointer}
 #about-start:hover{filter:brightness(1.08)}
 
+/* On-map hint chip (click-to-identify discoverability) */
+#map-hint{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);z-index:1100;
+  background:rgba(13,17,23,.92);border:1px solid var(--accent);color:var(--text);
+  font-size:12.5px;padding:8px 12px;border-radius:20px;box-shadow:0 4px 16px rgba(0,0,0,.5);
+  display:flex;align-items:center;gap:8px;max-width:90vw}
+#map-hint-x{background:none;border:none;color:var(--muted);font-size:17px;line-height:1;cursor:pointer;padding:0}
+#map-hint-x:hover{color:#fff}
+
 /* Responsive: stack the map on top of the panel on narrow screens so the
    map never collapses to zero width behind the sidebar. */
 @media (max-width: 900px){
-  #app{flex-direction:column}
-  #map{order:1;width:100%;height:55vh;min-height:300px;flex:none}
-  #sidebar{order:2;width:100%;min-width:0;height:auto;max-height:45vh;
+  #app{flex-direction:column;height:auto;min-height:100vh}
+  #map{order:1;width:100%;height:60vh;min-height:320px;flex:none}
+  /* single scroll context — no sidebar-within-page scroll trap */
+  #sidebar{order:2;width:100%;min-width:0;height:auto;max-height:none;overflow:visible;
            border-right:none;border-top:1px solid var(--line)}
   #sidebar header{position:static}
   #loading{left:50%}
+  .recent-list{max-height:none;overflow:visible}   /* no nested scroll on mobile */
+  .chk{padding:8px 0}                                /* bigger tap targets */
+  .rc{padding:9px 6px}
+  .fc-tab{padding:10px 4px}
+}
+@media (max-width: 430px){
+  .stat-grid{grid-template-columns:1fr}             /* stack stat cards on small phones */
 }

@@ -142,7 +142,7 @@
   // ---- GPS land-motion arrows ----------------------------------------------
   // Each arrow = one location's measured ground motion. Direction = which way the
   // land is creeping; length & on-hover number = how fast (mm/yr). The whole
-  // PR block drifts together toward the NE at ~1.5-2 cm/yr.
+  // PR block drifts together toward the NNE at ~1.5-2 cm/yr.
   const gpsLayer = L.layerGroup();
   const COMPASS = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
                    "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
@@ -260,6 +260,7 @@
   function buildCrossSection() {
     const el = document.getElementById("xsection");
     if (!el || !window.Chart) return;
+    const exC = Chart.getChart && Chart.getChart(el); if (exC) exC.destroy();
     const pts = [];
     for (const f of QUAKES) {
       const p = f.properties;
@@ -361,7 +362,7 @@
     const sg = document.getElementById("fc-stats");
     if (sg) sg.innerHTML = [
       [scored, "events tested"], [hits, "✓ hits (in zone)"],
-      [misses, "✗ misses (surprises)"], [scored ? lift.toFixed(2) + "×" : "—", "vs random chance"],
+      [misses, "✗ misses (surprises)"], [scored ? lift.toFixed(2) + "×" : "—", "better than guessing"],
     ].map(c => `<div class="stat"><div class="v">${c[0]}</div><div class="k">${c[1]}</div></div>`).join("");
     const note = document.getElementById("fc-note");
     if (note) note.innerHTML = fcExercise === "retro"
@@ -407,6 +408,7 @@
   function buildRolling() {
     const el = document.getElementById("fc-rolling");
     if (!el || !window.Chart || !FC || !FC.rolling) { const w = document.getElementById("fc-rolling-wrap"); if (w && !(FC && FC.rolling)) w.style.display = "none"; return; }
+    const ex = Chart.getChart && Chart.getChart(el); if (ex) ex.destroy();
     const series = FC.rolling.series.filter(s => s.lift != null);
     const pts = series.map(s => ({ x: s.start, y: s.lift }));
     const colors = series.map(s => s.lift >= 1 ? "#7ee787" : "#ff5d5d");
@@ -451,7 +453,9 @@
     // record is incomplete and the curve flattens into a misleading plateau.
     const gr = (st.gutenberg_richter || []).filter(d => d.mag >= (st.mc || 2.5));
     if (gr.length && window.Chart) {
-      new Chart(document.getElementById("gr-chart"), {
+      const grEl = document.getElementById("gr-chart");
+      const exG = Chart.getChart && Chart.getChart(grEl); if (exG) exG.destroy();
+      new Chart(grEl, {
         type: "line",
         data: { labels: gr.map(d => d.mag),
           datasets: [{ label: "events ≥ magnitude (log)", data: gr.map(d => d.count),
@@ -487,6 +491,36 @@
     if (e.target.checked) { loadLive(); liveLayer.addTo(map); } else map.removeLayer(liveLayer);
   });
   if (liveCb.checked) { loadLive(); liveLayer.addTo(map); } // on by default
+
+  // Collapsible explainer panels — collapsed by default to cut the scroll.
+  document.querySelectorAll(".panel.collapsible > h2").forEach(h => {
+    h.setAttribute("role", "button"); h.setAttribute("tabindex", "0");
+    const toggle = () => {
+      const panel = h.parentElement;
+      const open = panel.classList.toggle("open");
+      // Charts built while hidden initialise at 0px — rebuild them once the
+      // panel has real dimensions (timeout lets layout settle).
+      if (open && window.Chart) setTimeout(() => {
+        if (panel.id === "risk") buildStats();
+        else if (panel.id === "xsec") buildCrossSection();
+        else if (panel.id === "forecast") { renderSkillCurve(); buildRolling(); scoreForecast(); }
+      }, 80);
+    };
+    h.addEventListener("click", toggle);
+    h.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+  });
+
+  // One-time on-map hint so people discover click-to-identify.
+  const hint = document.getElementById("map-hint");
+  if (hint) {
+    let hintSeen = false;
+    try { hintSeen = localStorage.getItem("pr_hint") === "1"; } catch (e) {}
+    if (hintSeen) hint.style.display = "none";
+    const dismissHint = () => { hint.style.display = "none"; try { localStorage.setItem("pr_hint", "1"); } catch (e) {} };
+    const hx = document.getElementById("map-hint-x");
+    if (hx) hx.addEventListener("click", dismissHint);
+    map.once("click", dismissHint);
+  }
 
   // Forecast model wiring (heatmap layer + back-test exercise controls).
   if (FC) {
