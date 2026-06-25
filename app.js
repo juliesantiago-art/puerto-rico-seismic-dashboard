@@ -15,6 +15,11 @@
     attribution: "&copy; OpenStreetMap &copy; CARTO", subdomains: "abcd", maxZoom: 19,
   }).addTo(map);
   const canvas = L.canvas({ padding: 0.5 });
+  // Dedicated top pane + renderer for live quakes so they always sit ABOVE the
+  // dense historical layer and stay clickable even after the slider re-renders.
+  map.createPane("livePane");
+  map.getPane("livePane").style.zIndex = 450;
+  const liveRenderer = L.canvas({ pane: "livePane", padding: 0.5 });
 
   // ---- Depth color / magnitude size ---------------------------------------
   function depthColor(d) {
@@ -144,17 +149,26 @@
       "&starttime=" + new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10) +
       "&minlatitude=17&maxlatitude=19.75&minlongitude=-68.5&maxlongitude=-64&minmagnitude=2";
     fetch(url).then(r => r.json()).then(fc => {
-      (fc.features || []).forEach(f => {
+      const feats = (fc.features || []);
+      feats.forEach(f => {
         const c = f.geometry.coordinates, p = f.properties;
-        L.circleMarker([c[1], c[0]], { renderer: canvas, radius: magRadius(p.mag || 2) + 1,
-          color: "#4aa8ff", weight: 1.5, fillColor: depthColor(c[2]), fillOpacity: 0.6 })
-          .bindPopup(`<div class="pp-mag" style="color:#4aa8ff">M ${(p.mag || 0).toFixed(1)} · LIVE</div>` +
+        const mag = p.mag != null ? p.mag : 0;
+        L.circleMarker([c[1], c[0]], {
+          renderer: liveRenderer, radius: Math.max(5, magRadius(mag) + 2),
+          color: "#4aa8ff", weight: 2.5, fillColor: depthColor(c[2]), fillOpacity: 0.75,
+        })
+          .bindTooltip(`M ${mag.toFixed(1)}`, { direction: "top", offset: [0, -2],
+            className: "mag-tip", opacity: 0.97 })
+          .bindPopup(`<div class="pp-mag" style="color:#4aa8ff">M ${mag.toFixed(1)} · LIVE</div>` +
             `<b>${p.place || ""}</b><br>${fmtDate(p.time)} · depth ${Math.round(c[2])} km`)
           .addTo(liveLayer);
       });
+      const note = document.getElementById("live-note");
+      if (note) note.textContent = `${feats.length} quakes in the last 30 days — hover or click any blue dot.`;
     }).catch(() => {
       liveLoaded = false;
-      alert("Could not reach the USGS live feed (need internet). Historical data still works.");
+      const note = document.getElementById("live-note");
+      if (note) note.textContent = "Couldn’t reach the USGS live feed (needs internet).";
     });
   }
 
@@ -205,9 +219,11 @@
   toggle("lyr-faults", faultLayer);
   toggle("lyr-gps", gpsLayer);
   toggle("lyr-landmark", landmarkLayer);
-  document.getElementById("lyr-live").addEventListener("change", e => {
+  const liveCb = document.getElementById("lyr-live");
+  liveCb.addEventListener("change", e => {
     if (e.target.checked) { loadLive(); liveLayer.addTo(map); } else map.removeLayer(liveLayer);
   });
+  if (liveCb.checked) { loadLive(); liveLayer.addTo(map); } // on by default
 
   const magEl = document.getElementById("mag-min"), yearEl = document.getElementById("year");
   magEl.addEventListener("input", () => {

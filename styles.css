@@ -68,6 +68,11 @@ footer p{font-size:10.5px;color:var(--muted);line-height:1.5;margin:0}
 
 .lmk{font-size:18px;text-align:center;line-height:24px;text-shadow:0 0 6px #000}
 
+/* Magnitude hover tooltip for live quakes */
+.mag-tip{background:#0b1d33;color:#bfe0ff;border:1px solid #4aa8ff;border-radius:6px;
+  font-weight:700;font-size:12px;padding:2px 7px;box-shadow:0 2px 8px rgba(0,0,0,.5)}
+.mag-tip::before{border-top-color:#4aa8ff !important}
+
 /* Help button (floating on the map) */
 #help-btn{position:absolute;top:12px;right:12px;z-index:1100;width:34px;height:34px;
   border-radius:50%;border:1px solid var(--line);background:var(--panel2);color:var(--accent);
